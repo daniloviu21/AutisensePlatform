@@ -23,7 +23,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   const login = async (correo: string, password: string) => {
+    console.log("LOGIN submit", { correo });
     const res = await http.post("/auth/login", { correo, password });
+    console.log("LOGIN response", res.status, res.data);
+
     localStorage.setItem("accessToken", res.data.accessToken);
     localStorage.setItem("refreshToken", res.data.refreshToken);
     localStorage.setItem("user", JSON.stringify(res.data.user));
