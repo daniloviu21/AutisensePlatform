@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 
 import { authRouter } from "./modules/auth/auth.routes";
 import { clinicasRouter } from "./modules/clinicas/clinicas.routes";
+import { usuariosRouter } from "./modules/usuarios/usuarios.routes";
 
 dotenv.config();
 
@@ -21,6 +22,7 @@ app.use(morgan("dev"));
 app.get("/health", (_req, res) => res.json({ ok: true }));
 app.use("/auth", authRouter);
 app.use("/clinicas", clinicasRouter);
+app.use("/usuarios", usuariosRouter);
 
 app.use((_req, res) => res.status(404).json({ message: "Not found" }));
 
