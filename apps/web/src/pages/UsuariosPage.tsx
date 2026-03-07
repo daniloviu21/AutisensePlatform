@@ -48,15 +48,18 @@ import type {
 import { esES } from "@mui/x-data-grid/locales";
 import { useEffect, useMemo, useState } from "react";
 import AdminLayout from "../layout/AdminLayout";
-import ClinicFormDialog from "../components/clinicas/ClinicFormDialog";
+import UserFormDialog from "../components/usuarios/UserFormDialog";
 import type {
-  ClinicFormValues,
-  ClinicStatus,
-} from "../components/clinicas/ClinicFormDialog";
-import ConfirmActionDialog from "../components/clinicas/ConfirmActionDialog";
+  ClinicOption,
+  UserFormValues,
+  UserRole,
+  UserStatus,
+} from "../components/usuarios/UserFormDialog";
+import ConfirmUserActionDialog from "../components/usuarios/ConfirmUserActionDialog";
 
-type ClinicRow = ClinicFormValues & {
+type UserRow = UserFormValues & {
   id: number;
+  clinicaNombre: string | null;
 };
 
 type ToastState = {
@@ -65,126 +68,58 @@ type ToastState = {
   message: string;
 };
 
-const initialClinics: ClinicRow[] = [
+const clinicsMock: ClinicOption[] = [
+  { id: 1, nombre: "Clínica San Ángel", estado: "activa" },
+  { id: 2, nombre: "Centro Infantil Nova", estado: "activa" },
+  { id: 3, nombre: "Unidad Pediátrica del Golfo", estado: "suspendida" },
+  { id: 4, nombre: "Clínica Horizonte", estado: "activa" },
+];
+
+const initialUsers: UserRow[] = [
   {
     id: 1,
-    nombre: "Clínica San Ángel",
-    razon_social: "San Ángel Pediatría Integral S.A. de C.V.",
-    rfc: "SPI240101AAA",
-    telefono: "2291112233",
-    correo_contacto: "contacto@sanangel.mx",
-    direccion: "Av. Costa Verde 120, Fracc. Reforma, Veracruz, Ver.",
-    estado: "activa",
+    correo: "admin@autisense.com",
+    password: "",
+    role: "super_admin",
+    estado: "activo",
+    clinicaId: null,
+    clinicaNombre: null,
   },
   {
     id: 2,
-    nombre: "Centro Infantil Nova",
-    razon_social: "Centro Infantil Nova S.C.",
-    rfc: "CIN240101BBB",
-    telefono: "2285550102",
-    correo_contacto: "admin@novainfantil.mx",
-    direccion: "Calle Magnolia 45, Zona Centro, Xalapa, Ver.",
-    estado: "activa",
+    correo: "admin@sanangel.mx",
+    password: "",
+    role: "clinic_admin",
+    estado: "activo",
+    clinicaId: 1,
+    clinicaNombre: "Clínica San Ángel",
   },
   {
     id: 3,
-    nombre: "Unidad Pediátrica del Golfo",
-    razon_social: "Unidad Pediátrica del Golfo S.A.",
-    rfc: "UPG240101CCC",
-    telefono: "2293334455",
-    correo_contacto: "recepcion@upg.mx",
-    direccion: "Blvd. Hidalgo 250, Tampico, Tamps.",
-    estado: "suspendida",
+    correo: "terapia@sanangel.mx",
+    password: "",
+    role: "profesional",
+    estado: "activo",
+    clinicaId: 1,
+    clinicaNombre: "Clínica San Ángel",
   },
   {
     id: 4,
-    nombre: "Clínica Horizonte",
-    razon_social: "Horizonte Infantil S.A. de C.V.",
-    rfc: "CHI240101DDD",
-    telefono: "9991112233",
-    correo_contacto: "contacto@horizonte.mx",
-    direccion: "Calle 60 220, Mérida, Yuc.",
-    estado: "activa",
+    correo: "tutor1@nova.mx",
+    password: "",
+    role: "tutor",
+    estado: "pendiente",
+    clinicaId: 2,
+    clinicaNombre: "Centro Infantil Nova",
   },
   {
     id: 5,
-    nombre: "Pediacare Norte",
-    razon_social: "Pediacare Norte S.C.",
-    rfc: "PNO240101EEE",
-    telefono: "8185557788",
-    correo_contacto: "admin@pediacare.mx",
-    direccion: "Av. Real 501, Monterrey, N.L.",
-    estado: "activa",
-  },
-  {
-    id: 6,
-    nombre: "Clínica Misión Azul",
-    razon_social: "Misión Azul Pediatría S.A.",
-    rfc: "MAP240101FFF",
-    telefono: "6674441122",
-    correo_contacto: "contacto@misionazul.mx",
-    direccion: "Blvd. Universitarios 300, Culiacán, Sin.",
-    estado: "suspendida",
-  },
-  {
-    id: 7,
-    nombre: "Centro Pediátrico del Valle",
-    razon_social: "Centro Pediátrico del Valle S.C.",
-    rfc: "CPV240101GGG",
-    telefono: "3337772211",
-    correo_contacto: "recepcion@cpvalle.mx",
-    direccion: "Av. Vallarta 1800, Guadalajara, Jal.",
-    estado: "activa",
-  },
-  {
-    id: 8,
-    nombre: "Unidad Infantil del Pacífico",
-    razon_social: "Unidad Infantil del Pacífico S.A. de C.V.",
-    rfc: "UIP240101HHH",
-    telefono: "6123337788",
-    correo_contacto: "admin@uipacifico.mx",
-    direccion: "Malecón 22, La Paz, B.C.S.",
-    estado: "suspendida",
-  },
-  {
-    id: 9,
-    nombre: "Clínica Arcoíris",
-    razon_social: "Clínica Arcoíris Infantil S.C.",
-    rfc: "CAI240101III",
-    telefono: "2224568899",
-    correo_contacto: "contacto@arcoiris.mx",
-    direccion: "Av. Juárez 501, Puebla, Pue.",
-    estado: "activa",
-  },
-  {
-    id: 10,
-    nombre: "Pediatría del Centro",
-    razon_social: "Pediatría del Centro S.A.",
-    rfc: "PDC240101JJJ",
-    telefono: "4442223344",
-    correo_contacto: "info@pediatriacentro.mx",
-    direccion: "Carranza 120, San Luis Potosí, S.L.P.",
-    estado: "activa",
-  },
-  {
-    id: 11,
-    nombre: "Clínica Bosque Salud",
-    razon_social: "Bosque Salud Infantil S.C.",
-    rfc: "BSI240101KKK",
-    telefono: "7779872233",
-    correo_contacto: "admin@bosquesalud.mx",
-    direccion: "Av. Teopanzolco 33, Cuernavaca, Mor.",
-    estado: "suspendida",
-  },
-  {
-    id: 12,
-    nombre: "Centro Integral Aurora",
-    razon_social: "Centro Integral Aurora S.A. de C.V.",
-    rfc: "CIA240101LLL",
-    telefono: "6141117766",
-    correo_contacto: "contacto@aurora.mx",
-    direccion: "Av. Universidad 45, Chihuahua, Chih.",
-    estado: "activa",
+    correo: "admin@golfo.mx",
+    password: "",
+    role: "clinic_admin",
+    estado: "suspendido",
+    clinicaId: 3,
+    clinicaNombre: "Unidad Pediátrica del Golfo",
   },
 ];
 
@@ -196,11 +131,9 @@ const localeText = {
 };
 
 const initialVisibilityModel: GridColumnVisibilityModel = {
-  nombre: true,
-  razon_social: true,
-  rfc: true,
-  telefono: true,
-  correo_contacto: true,
+  correo: true,
+  role: true,
+  clinicaNombre: true,
   estado: true,
   rowActions: true,
 };
@@ -219,10 +152,10 @@ function EmptyState() {
       }}
     >
       <Typography sx={{ fontWeight: 800, fontSize: 16 }}>
-        No hay clínicas para mostrar
+        No hay usuarios para mostrar
       </Typography>
       <Typography color="text.secondary">
-        Ajusta el filtro o crea una nueva clínica.
+        Ajusta el filtro o crea un nuevo usuario.
       </Typography>
     </Stack>
   );
@@ -248,11 +181,9 @@ function ColumnSettingsDialog({
   onReset,
 }: ColumnSettingsDialogProps) {
   const columns = [
-    { field: "nombre", label: "Nombre", required: true },
-    { field: "razon_social", label: "Razón social", required: false },
-    { field: "rfc", label: "RFC", required: false },
-    { field: "telefono", label: "Teléfono", required: false },
-    { field: "correo_contacto", label: "Correo contacto", required: false },
+    { field: "correo", label: "Correo", required: true },
+    { field: "role", label: "Rol", required: false },
+    { field: "clinicaNombre", label: "Clínica", required: false },
     { field: "estado", label: "Estado", required: false },
   ];
 
@@ -320,34 +251,73 @@ function compareValues(a: unknown, b: unknown) {
   return left.localeCompare(right, "es", { sensitivity: "base", numeric: true });
 }
 
-function sortRows(rows: ClinicRow[], sortModel: GridSortModel) {
+function sortRows(rows: UserRow[], sortModel: GridSortModel) {
   if (!sortModel.length) return rows;
 
   const [{ field, sort }] = sortModel;
   if (!field || !sort) return rows;
 
-  const sorted = [...rows].sort((a, b) => {
-    const result = compareValues(a[field as keyof ClinicRow], b[field as keyof ClinicRow]);
+  return [...rows].sort((a, b) => {
+    const result = compareValues(a[field as keyof UserRow], b[field as keyof UserRow]);
     return sort === "asc" ? result : -result;
   });
-
-  return sorted;
 }
 
-export default function ClinicasPage() {
+function roleLabel(role: UserRole) {
+  switch (role) {
+    case "super_admin":
+      return "Super admin";
+    case "clinic_admin":
+      return "Admin de clínica";
+    case "profesional":
+      return "Profesional";
+    case "tutor":
+      return "Tutor";
+    default:
+      return role;
+  }
+}
+
+function statusColor(status: UserStatus) {
+  if (status === "activo") {
+    return {
+      color: "#0F766E",
+      backgroundColor: alpha("#2A9D8F", 0.14),
+      label: "Activo",
+    };
+  }
+
+  if (status === "pendiente") {
+    return {
+      color: "#9A3412",
+      backgroundColor: alpha("#F59E0B", 0.18),
+      label: "Pendiente",
+    };
+  }
+
+  return {
+    color: "#B91C1C",
+    backgroundColor: alpha("#EF4444", 0.14),
+    label: "Suspendido",
+  };
+}
+
+export default function UsuariosPage() {
   const theme = useTheme();
 
-  const [rows, setRows] = useState<ClinicRow[]>(initialClinics);
+  const [rows, setRows] = useState<UserRow[]>(initialUsers);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"todas" | ClinicStatus>("todas");
+  const [roleFilter, setRoleFilter] = useState<"todos" | UserRole>("todos");
+  const [statusFilter, setStatusFilter] = useState<"todos" | UserStatus>("todos");
+  const [clinicFilter, setClinicFilter] = useState<"todas" | number>("todas");
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<"create" | "edit">("create");
-  const [editingClinic, setEditingClinic] = useState<ClinicRow | null>(null);
+  const [editingUser, setEditingUser] = useState<UserRow | null>(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
 
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [selectedClinic, setSelectedClinic] = useState<ClinicRow | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
 
   const [columnsDialogOpen, setColumnsDialogOpen] = useState(false);
   const [columnVisibilityModel, setColumnVisibilityModel] =
@@ -372,18 +342,18 @@ export default function ClinicasPage() {
     return rows.filter((row) => {
       const matchesSearch =
         !q ||
-        row.nombre.toLowerCase().includes(q) ||
-        row.razon_social.toLowerCase().includes(q) ||
-        row.rfc.toLowerCase().includes(q) ||
-        row.correo_contacto.toLowerCase().includes(q) ||
-        row.telefono.toLowerCase().includes(q);
+        row.correo.toLowerCase().includes(q) ||
+        roleLabel(row.role).toLowerCase().includes(q) ||
+        (row.clinicaNombre ?? "").toLowerCase().includes(q);
 
-      const matchesStatus =
-        statusFilter === "todas" ? true : row.estado === statusFilter;
+      const matchesRole = roleFilter === "todos" ? true : row.role === roleFilter;
+      const matchesStatus = statusFilter === "todos" ? true : row.estado === statusFilter;
+      const matchesClinic =
+        clinicFilter === "todas" ? true : row.clinicaId === clinicFilter;
 
-      return matchesSearch && matchesStatus;
+      return matchesSearch && matchesRole && matchesStatus && matchesClinic;
     });
-  }, [rows, search, statusFilter]);
+  }, [rows, search, roleFilter, statusFilter, clinicFilter]);
 
   const sortedRows = useMemo(() => sortRows(filteredRows, sortModel), [filteredRows, sortModel]);
 
@@ -397,7 +367,7 @@ export default function ClinicasPage() {
 
   useEffect(() => {
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
-  }, [search, statusFilter, sortModel]);
+  }, [search, roleFilter, statusFilter, clinicFilter, sortModel]);
 
   useEffect(() => {
     const maxPage = Math.max(0, Math.ceil(totalRows / PAGE_SIZE) - 1);
@@ -410,10 +380,7 @@ export default function ClinicasPage() {
     }
   }, [totalRows, paginationModel.page]);
 
-  const showToast = (
-    severity: ToastState["severity"],
-    message: string
-  ) => {
+  const showToast = (severity: ToastState["severity"], message: string) => {
     setToast({
       open: true,
       severity,
@@ -423,60 +390,78 @@ export default function ClinicasPage() {
 
   const openCreate = () => {
     setDialogMode("create");
-    setEditingClinic(null);
+    setEditingUser(null);
     setDialogOpen(true);
   };
 
-  const openEdit = (row: ClinicRow) => {
+  const openEdit = (row: UserRow) => {
     setDialogMode("edit");
-    setEditingClinic(row);
+    setEditingUser({
+      ...row,
+      password: "",
+    });
     setDialogOpen(true);
   };
 
-  const handleSave = async (values: ClinicFormValues) => {
+  const handleSave = async (values: UserFormValues) => {
     try {
       setFormSubmitting(true);
 
+      const clinicName =
+        values.clinicaId == null
+          ? null
+          : clinicsMock.find((c) => c.id === values.clinicaId)?.nombre ?? null;
+
       if (dialogMode === "create") {
-        const next = { ...values, id: Date.now() };
+        const next: UserRow = {
+          ...values,
+          id: Date.now(),
+          clinicaNombre: clinicName,
+        };
+
         setRows((prev) => [next, ...prev]);
-        showToast("success", "La clínica se agregó correctamente.");
-      } else if (editingClinic) {
+        showToast("success", "El usuario se agregó correctamente.");
+      } else if (editingUser) {
         setRows((prev) =>
           prev.map((row) =>
-            row.id === editingClinic.id
-              ? { ...row, ...values, id: editingClinic.id }
+            row.id === editingUser.id
+              ? {
+                  ...row,
+                  ...values,
+                  id: editingUser.id,
+                  clinicaNombre: clinicName,
+                }
               : row
           )
         );
-        showToast("success", "La clínica se actualizó correctamente.");
+        showToast("success", "El usuario se actualizó correctamente.");
       }
 
       setDialogOpen(false);
-      setEditingClinic(null);
+      setEditingUser(null);
       setPaginationModel((prev) => ({ ...prev, page: 0 }));
     } catch {
-      showToast("error", "No se pudo guardar la clínica.");
+      showToast("error", "No se pudo guardar el usuario.");
     } finally {
       setFormSubmitting(false);
     }
   };
 
-  const askToggleStatus = (row: ClinicRow) => {
-    setSelectedClinic(row);
+  const askToggleStatus = (row: UserRow) => {
+    setSelectedUser(row);
     setConfirmOpen(true);
   };
 
   const confirmToggleStatus = () => {
-    if (!selectedClinic) return;
+    if (!selectedUser) return;
 
     try {
-      const nextState =
-        selectedClinic.estado === "activa" ? "suspendida" : "activa";
+      const nextState: UserStatus =
+        selectedUser.estado === "activo" ? "suspendido" : "activo";
 
       setRows((prev) =>
         prev.map((row) =>
-          row.id === selectedClinic.id
+          row.id === selectedUser.id
             ? {
                 ...row,
                 estado: nextState,
@@ -487,47 +472,39 @@ export default function ClinicasPage() {
 
       showToast(
         "success",
-        nextState === "suspendida"
-          ? "La clínica fue suspendida correctamente."
-          : "La clínica fue reactivada correctamente."
+        nextState === "suspendido"
+          ? "El usuario fue suspendido correctamente."
+          : "El usuario fue reactivado correctamente."
       );
     } catch {
-      showToast("error", "No se pudo actualizar el estado de la clínica.");
+      showToast("error", "No se pudo actualizar el estado del usuario.");
     } finally {
       setConfirmOpen(false);
-      setSelectedClinic(null);
+      setSelectedUser(null);
     }
   };
 
-  const toggleColumn = (field: string) => {
-    if (field === "nombre") return;
+    const toggleColumn = (field: string) => {
+        if (field === "correo") return;
 
-    setColumnVisibilityModel((prev) => {
-      const nextValue = !(prev[field] !== false);
+        setColumnVisibilityModel((prev) => {
+            const nextValue = !(prev[field] !== false);
 
-      const nextModel = {
-        ...prev,
-        [field]: nextValue,
-      };
+            const nextModel = {
+            ...prev,
+            [field]: nextValue,
+            };
 
-      const protectedFields = [
-        "nombre",
-        "razon_social",
-        "rfc",
-        "telefono",
-        "correo_contacto",
-        "estado",
-      ];
+            const protectedFields = ["correo", "role", "clinicaNombre", "estado"];
+            const visibleCount = protectedFields.filter((key) => nextModel[key] !== false).length;
 
-      const visibleCount = protectedFields.filter((key) => nextModel[key] !== false).length;
+            if (visibleCount === 0) {
+            return prev;
+            }
 
-      if (visibleCount === 0) {
-        return prev;
-      }
-
-      return nextModel;
-    });
-  };
+            return nextModel;
+        });
+    };
 
   const resetColumns = () => {
     setColumnVisibilityModel(initialVisibilityModel);
@@ -541,22 +518,22 @@ export default function ClinicasPage() {
     return <SwapVert sx={{ fontSize: 16, opacity: 0.55 }} />;
   };
 
-  const columns = useMemo<GridColDef<ClinicRow>[]>(
+  const columns = useMemo<GridColDef<UserRow>[]>(
     () => [
       {
-        field: "nombre",
-        headerName: "Nombre",
-        flex: 1.1,
-        minWidth: 240,
+        field: "correo",
+        headerName: "Correo",
+        flex: 1.35,
+        minWidth: 260,
         sortable: true,
         disableColumnMenu: true,
         renderHeader: () => (
           <Stack direction="row" spacing={0.5} alignItems="center">
-            <span>Nombre</span>
-            {renderSortIcon("nombre")}
+            <span>Correo</span>
+            {renderSortIcon("correo")}
           </Stack>
         ),
-        renderCell: (params: GridRenderCellParams<ClinicRow, string>) => (
+        renderCell: (params: GridRenderCellParams<UserRow, string>) => (
           <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
             <Avatar
               sx={{
@@ -571,69 +548,47 @@ export default function ClinicasPage() {
                 color: "primary.main",
               }}
             >
-              {params.row.nombre?.charAt(0)?.toUpperCase() ?? "C"}
+              {params.row.correo?.charAt(0)?.toUpperCase() ?? "U"}
             </Avatar>
 
             <Typography sx={{ fontWeight: 700 }} noWrap>
-              {params.row.nombre}
+              {params.row.correo}
             </Typography>
           </Stack>
         ),
       },
       {
-        field: "razon_social",
-        headerName: "Razón social",
-        flex: 1.35,
-        minWidth: 260,
+        field: "role",
+        headerName: "Rol",
+        flex: 0.95,
+        minWidth: 180,
         sortable: true,
         disableColumnMenu: true,
         renderHeader: () => (
           <Stack direction="row" spacing={0.5} alignItems="center">
-            <span>Razón social</span>
-            {renderSortIcon("razon_social")}
+            <span>Rol</span>
+            {renderSortIcon("role")}
           </Stack>
+        ),
+        renderCell: (params: GridRenderCellParams<UserRow, UserRole>) => (
+          <Typography noWrap>{roleLabel(params.row.role)}</Typography>
         ),
       },
       {
-        field: "rfc",
-        headerName: "RFC",
-        flex: 0.7,
-        minWidth: 150,
-        sortable: true,
-        disableColumnMenu: true,
-        renderHeader: () => (
-          <Stack direction="row" spacing={0.5} alignItems="center">
-            <span>RFC</span>
-            {renderSortIcon("rfc")}
-          </Stack>
-        ),
-      },
-      {
-        field: "telefono",
-        headerName: "Teléfono",
-        flex: 0.8,
-        minWidth: 150,
-        sortable: true,
-        disableColumnMenu: true,
-        renderHeader: () => (
-          <Stack direction="row" spacing={0.5} alignItems="center">
-            <span>Teléfono</span>
-            {renderSortIcon("telefono")}
-          </Stack>
-        ),
-      },
-      {
-        field: "correo_contacto",
-        headerName: "Correo contacto",
-        flex: 1.15,
+        field: "clinicaNombre",
+        headerName: "Clínica",
+        flex: 1.1,
         minWidth: 220,
         sortable: true,
         disableColumnMenu: true,
         renderHeader: () => (
           <Stack direction="row" spacing={0.5} alignItems="center">
-            <span>Correo contacto</span>
-            {renderSortIcon("correo_contacto")}
+            <span>Clínica</span>
+            {renderSortIcon("clinicaNombre")}
           </Stack>
+        ),
+        renderCell: (params: GridRenderCellParams<UserRow, string | null>) => (
+          <Typography noWrap>{params.row.clinicaNombre ?? "Sistema"}</Typography>
         ),
       },
       {
@@ -649,19 +604,17 @@ export default function ClinicasPage() {
             {renderSortIcon("estado")}
           </Stack>
         ),
-        renderCell: (params: GridRenderCellParams<ClinicRow, ClinicStatus>) => {
-          const active = params.row.estado === "activa";
+        renderCell: (params: GridRenderCellParams<UserRow, UserStatus>) => {
+          const styles = statusColor(params.row.estado);
 
           return (
             <Chip
-              label={active ? "Activa" : "Suspendida"}
+              label={styles.label}
               size="small"
               sx={{
                 fontWeight: 700,
-                color: active ? "#0F766E" : "#B45309",
-                backgroundColor: active
-                  ? alpha("#2A9D8F", 0.14)
-                  : alpha("#F59E0B", 0.18),
+                color: styles.color,
+                backgroundColor: styles.backgroundColor,
               }}
             />
           );
@@ -677,7 +630,7 @@ export default function ClinicasPage() {
         minWidth: 126,
         align: "center",
         headerAlign: "center",
-        renderCell: (params: GridRenderCellParams<ClinicRow>) => (
+        renderCell: (params: GridRenderCellParams<UserRow>) => (
           <Box
             className="row-actions"
             sx={{
@@ -692,21 +645,21 @@ export default function ClinicasPage() {
             }}
           >
             <Stack direction="row" spacing={0.25} alignItems="center" justifyContent="center">
-              <Tooltip title="Editar">
+                <Tooltip title="Editar">
                 <IconButton size="small" onClick={() => openEdit(params.row)}>
-                  <EditOutlined fontSize="small" />
+                    <EditOutlined fontSize="small" />
                 </IconButton>
-              </Tooltip>
+                </Tooltip>
 
-              <Tooltip title={params.row.estado === "activa" ? "Suspender" : "Reactivar"}>
+                <Tooltip title={params.row.estado === "activo" ? "Suspender" : "Reactivar"}>
                 <IconButton size="small" onClick={() => askToggleStatus(params.row)}>
-                  {params.row.estado === "activa" ? (
+                    {params.row.estado === "activo" ? (
                     <PauseCircleOutline fontSize="small" />
-                  ) : (
+                    ) : (
                     <PlayCircleOutline fontSize="small" />
-                  )}
+                    )}
                 </IconButton>
-              </Tooltip>
+                </Tooltip>
             </Stack>
           </Box>
         ),
@@ -717,8 +670,8 @@ export default function ClinicasPage() {
 
   return (
     <AdminLayout
-      title="Clínicas"
-      subtitle="Gestión de clínicas registradas"
+      title="Usuarios"
+      subtitle="Gestión de cuentas de acceso del sistema"
       actions={
         <Button
           variant="contained"
@@ -732,7 +685,7 @@ export default function ClinicasPage() {
             boxShadow: "none",
           }}
         >
-          Nueva clínica
+          Nuevo usuario
         </Button>
       }
     >
@@ -752,13 +705,13 @@ export default function ClinicasPage() {
             borderBottom: "1px solid",
             borderColor: "divider",
             display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "1fr 180px 48px" },
+            gridTemplateColumns: { xs: "1fr", xl: "1fr 180px 180px 220px 48px" },
             gap: 1.5,
             alignItems: "center",
           }}
         >
           <TextField
-            placeholder="Buscar por nombre, razón social, RFC, correo o teléfono"
+            placeholder="Buscar por correo, rol o clínica"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             fullWidth
@@ -774,13 +727,45 @@ export default function ClinicasPage() {
           <TextField
             select
             fullWidth
+            label="Rol"
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value as "todos" | UserRole)}
+          >
+            <MenuItem value="todos">Todos</MenuItem>
+            <MenuItem value="super_admin">Super admin</MenuItem>
+            <MenuItem value="clinic_admin">Admin de clínica</MenuItem>
+            <MenuItem value="profesional">Profesional</MenuItem>
+            <MenuItem value="tutor">Tutor</MenuItem>
+          </TextField>
+
+          <TextField
+            select
+            fullWidth
             label="Estado"
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as "todas" | ClinicStatus)}
+            onChange={(e) => setStatusFilter(e.target.value as "todos" | UserStatus)}
+          >
+            <MenuItem value="todos">Todos</MenuItem>
+            <MenuItem value="activo">Activo</MenuItem>
+            <MenuItem value="pendiente">Pendiente</MenuItem>
+            <MenuItem value="suspendido">Suspendido</MenuItem>
+          </TextField>
+
+          <TextField
+            select
+            fullWidth
+            label="Clínica"
+            value={clinicFilter}
+            onChange={(e) =>
+              setClinicFilter(e.target.value === "todas" ? "todas" : Number(e.target.value))
+            }
           >
             <MenuItem value="todas">Todas</MenuItem>
-            <MenuItem value="activa">Activas</MenuItem>
-            <MenuItem value="suspendida">Suspendidas</MenuItem>
+            {clinicsMock.map((clinic) => (
+              <MenuItem key={clinic.id} value={clinic.id}>
+                {clinic.nombre}
+              </MenuItem>
+            ))}
           </TextField>
 
           <Tooltip title="Configurar columnas">
@@ -893,38 +878,39 @@ export default function ClinicasPage() {
         </Box>
       </Paper>
 
-      <ClinicFormDialog
+      <UserFormDialog
         open={dialogOpen}
         mode={dialogMode}
-        initialData={editingClinic}
-        existingClinics={rows}
+        initialData={editingUser}
+        existingUsers={rows}
+        clinics={clinicsMock}
         submitting={formSubmitting}
         onClose={() => {
           if (formSubmitting) return;
           setDialogOpen(false);
-          setEditingClinic(null);
+          setEditingUser(null);
         }}
         onSubmit={handleSave}
       />
 
-      <ConfirmActionDialog
+      <ConfirmUserActionDialog
         open={confirmOpen}
         title={
-          selectedClinic?.estado === "activa"
-            ? "Suspender clínica"
-            : "Reactivar clínica"
+          selectedUser?.estado === "activo"
+            ? "Suspender usuario"
+            : "Reactivar usuario"
         }
         description={
-          selectedClinic?.estado === "activa"
-            ? "Esta acción deshabilitará su operación administrativa hasta reactivarla."
-            : "La clínica volverá a estar disponible para operación administrativa."
+          selectedUser?.estado === "activo"
+            ? "Esta acción impedirá temporalmente el acceso del usuario al sistema."
+            : "El usuario volverá a tener acceso al sistema."
         }
         confirmText={
-          selectedClinic?.estado === "activa" ? "Suspender" : "Reactivar"
+          selectedUser?.estado === "activo" ? "Suspender" : "Reactivar"
         }
         onClose={() => {
           setConfirmOpen(false);
-          setSelectedClinic(null);
+          setSelectedUser(null);
         }}
         onConfirm={confirmToggleStatus}
       />

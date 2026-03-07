@@ -11,6 +11,7 @@ import LoginPage from "./pages/LoginPage";
 import MfaPage from "./pages/MfaPage";
 import DashboardPage from "./pages/DashboardPage";
 import ClinicasPage from "./pages/ClinicasPage";
+import UsuariosPage from "./pages/UsuariosPage";
 
 function PlaceholderPage({ title }: { title: string }) {
   return <div style={{ padding: 24 }}>{title}</div>;
@@ -48,7 +49,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
               path="/usuarios"
               element={
                 <ProtectedRoute roles={["super_admin"]}>
-                  <PlaceholderPage title="Usuarios" />
+                  <UsuariosPage />
                 </ProtectedRoute>
               }
             />
