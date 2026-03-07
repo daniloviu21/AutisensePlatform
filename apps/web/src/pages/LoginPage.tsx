@@ -53,7 +53,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(data.correo, data.password);
-      nav("/clinicas", { replace: true });
+      nav("/dashboard", { replace: true });
     } catch (e: any) {
       setServerError(e?.response?.data?.message ?? "No se pudo iniciar sesión");
     } finally {
