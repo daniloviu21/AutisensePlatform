@@ -10,12 +10,12 @@ import {
 } from "@mui/material";
 import TextField from "@mui/material/TextField";
 import { Visibility, VisibilityOff, DarkMode, LightMode } from "@mui/icons-material";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "../auth/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useColorMode } from "../theme/ColorModeProvider";
 
 const schema = z.object({
@@ -31,11 +31,19 @@ type FormData = z.infer<typeof schema>;
 export default function LoginPage() {
   const { login } = useAuth();
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
   const { mode, toggle } = useColorMode();
 
   const [showPass, setShowPass] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const reason = searchParams.get("reason");
+    if (reason === "session-expired") {
+      setServerError("Tu sesión expiró. Inicia sesión nuevamente.");
+    }
+  }, [searchParams]);
 
   const {
     register,

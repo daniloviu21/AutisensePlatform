@@ -17,6 +17,7 @@ import {
   Button,
   Checkbox,
   Chip,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -45,7 +46,9 @@ import type {
   GridSortModel,
 } from "@mui/x-data-grid";
 import { esES } from "@mui/x-data-grid/locales";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { http } from "../api/http";
 import AdminLayout from "../layout/AdminLayout";
 import ClinicFormDialog from "../components/clinicas/ClinicFormDialog";
 import type {
@@ -58,134 +61,31 @@ type ClinicRow = ClinicFormValues & {
   id: number;
 };
 
+type ApiClinic = {
+  id: number;
+  nombre: string;
+  razon_social: string | null;
+  rfc: string | null;
+  telefono: string | null;
+  correo_contacto: string | null;
+  direccion: string | null;
+  estado: ClinicStatus;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+type ClinicsListResponse = {
+  page: number;
+  pageSize: number;
+  total: number;
+  items: ApiClinic[];
+};
+
 type ToastState = {
   open: boolean;
   severity: "success" | "error" | "info" | "warning";
   message: string;
 };
-
-const initialClinics: ClinicRow[] = [
-  {
-    id: 1,
-    nombre: "Clínica San Ángel",
-    razon_social: "San Ángel Pediatría Integral S.A. de C.V.",
-    rfc: "SPI240101AAA",
-    telefono: "2291112233",
-    correo_contacto: "contacto@sanangel.mx",
-    direccion: "Av. Costa Verde 120, Fracc. Reforma, Veracruz, Ver.",
-    estado: "activa",
-  },
-  {
-    id: 2,
-    nombre: "Centro Infantil Nova",
-    razon_social: "Centro Infantil Nova S.C.",
-    rfc: "CIN240101BBB",
-    telefono: "2285550102",
-    correo_contacto: "admin@novainfantil.mx",
-    direccion: "Calle Magnolia 45, Zona Centro, Xalapa, Ver.",
-    estado: "activa",
-  },
-  {
-    id: 3,
-    nombre: "Unidad Pediátrica del Golfo",
-    razon_social: "Unidad Pediátrica del Golfo S.A.",
-    rfc: "UPG240101CCC",
-    telefono: "2293334455",
-    correo_contacto: "recepcion@upg.mx",
-    direccion: "Blvd. Hidalgo 250, Tampico, Tamps.",
-    estado: "suspendida",
-  },
-  {
-    id: 4,
-    nombre: "Clínica Horizonte",
-    razon_social: "Horizonte Infantil S.A. de C.V.",
-    rfc: "CHI240101DDD",
-    telefono: "9991112233",
-    correo_contacto: "contacto@horizonte.mx",
-    direccion: "Calle 60 220, Mérida, Yuc.",
-    estado: "activa",
-  },
-  {
-    id: 5,
-    nombre: "Pediacare Norte",
-    razon_social: "Pediacare Norte S.C.",
-    rfc: "PNO240101EEE",
-    telefono: "8185557788",
-    correo_contacto: "admin@pediacare.mx",
-    direccion: "Av. Real 501, Monterrey, N.L.",
-    estado: "activa",
-  },
-  {
-    id: 6,
-    nombre: "Clínica Misión Azul",
-    razon_social: "Misión Azul Pediatría S.A.",
-    rfc: "MAP240101FFF",
-    telefono: "6674441122",
-    correo_contacto: "contacto@misionazul.mx",
-    direccion: "Blvd. Universitarios 300, Culiacán, Sin.",
-    estado: "suspendida",
-  },
-  {
-    id: 7,
-    nombre: "Centro Pediátrico del Valle",
-    razon_social: "Centro Pediátrico del Valle S.C.",
-    rfc: "CPV240101GGG",
-    telefono: "3337772211",
-    correo_contacto: "recepcion@cpvalle.mx",
-    direccion: "Av. Vallarta 1800, Guadalajara, Jal.",
-    estado: "activa",
-  },
-  {
-    id: 8,
-    nombre: "Unidad Infantil del Pacífico",
-    razon_social: "Unidad Infantil del Pacífico S.A. de C.V.",
-    rfc: "UIP240101HHH",
-    telefono: "6123337788",
-    correo_contacto: "admin@uipacifico.mx",
-    direccion: "Malecón 22, La Paz, B.C.S.",
-    estado: "suspendida",
-  },
-  {
-    id: 9,
-    nombre: "Clínica Arcoíris",
-    razon_social: "Clínica Arcoíris Infantil S.C.",
-    rfc: "CAI240101III",
-    telefono: "2224568899",
-    correo_contacto: "contacto@arcoiris.mx",
-    direccion: "Av. Juárez 501, Puebla, Pue.",
-    estado: "activa",
-  },
-  {
-    id: 10,
-    nombre: "Pediatría del Centro",
-    razon_social: "Pediatría del Centro S.A.",
-    rfc: "PDC240101JJJ",
-    telefono: "4442223344",
-    correo_contacto: "info@pediatriacentro.mx",
-    direccion: "Carranza 120, San Luis Potosí, S.L.P.",
-    estado: "activa",
-  },
-  {
-    id: 11,
-    nombre: "Clínica Bosque Salud",
-    razon_social: "Bosque Salud Infantil S.C.",
-    rfc: "BSI240101KKK",
-    telefono: "7779872233",
-    correo_contacto: "admin@bosquesalud.mx",
-    direccion: "Av. Teopanzolco 33, Cuernavaca, Mor.",
-    estado: "suspendida",
-  },
-  {
-    id: 12,
-    nombre: "Centro Integral Aurora",
-    razon_social: "Centro Integral Aurora S.A. de C.V.",
-    rfc: "CIA240101LLL",
-    telefono: "6141117766",
-    correo_contacto: "contacto@aurora.mx",
-    direccion: "Av. Universidad 45, Chihuahua, Chih.",
-    estado: "activa",
-  },
-];
 
 const PAGE_SIZE = 10;
 
@@ -204,7 +104,48 @@ const initialVisibilityModel: GridColumnVisibilityModel = {
   rowActions: true,
 };
 
-function EmptyState() {
+function normalizeClinic(apiClinic: ApiClinic): ClinicRow {
+  return {
+    id: apiClinic.id,
+    nombre: apiClinic.nombre ?? "",
+    razon_social: apiClinic.razon_social ?? "",
+    rfc: apiClinic.rfc ?? "",
+    telefono: apiClinic.telefono ?? "",
+    correo_contacto: apiClinic.correo_contacto ?? "",
+    direccion: apiClinic.direccion ?? "",
+    estado: apiClinic.estado ?? "suspendida",
+  };
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  const message =
+    (error as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+    (error as { message?: string })?.message;
+
+  return typeof message === "string" && message.trim() ? message : fallback;
+}
+
+function EmptyState({
+  loading,
+  hasFilters,
+}: {
+  loading: boolean;
+  hasFilters: boolean;
+}) {
+  if (loading) {
+    return (
+      <Stack
+        alignItems="center"
+        justifyContent="center"
+        spacing={1.5}
+        sx={{ minHeight: 240, height: "100%", px: 2, textAlign: "center" }}
+      >
+        <CircularProgress size={28} />
+        <Typography color="text.secondary">Cargando clínicas...</Typography>
+      </Stack>
+    );
+  }
+
   return (
     <Stack
       alignItems="center"
@@ -221,7 +162,9 @@ function EmptyState() {
         No hay clínicas para mostrar
       </Typography>
       <Typography color="text.secondary">
-        Ajusta el filtro o crea una nueva clínica.
+        {hasFilters
+          ? "Ajusta la búsqueda o los filtros para intentar de nuevo."
+          : "Crea una nueva clínica para comenzar."}
       </Typography>
     </Stack>
   );
@@ -276,8 +219,7 @@ function ColumnSettingsDialog({
           <FormGroup>
             {columns.map((column) => {
               const checked = model[column.field] !== false;
-              const disableUncheck =
-                column.required || (checked && visibleCount === 1);
+              const disableUncheck = column.required || (checked && visibleCount === 1);
 
               return (
                 <FormControlLabel
@@ -289,11 +231,7 @@ function ColumnSettingsDialog({
                       disabled={disableUncheck}
                     />
                   }
-                  label={
-                    column.required
-                      ? `${column.label}`
-                      : column.label
-                  }
+                  label={column.label}
                 />
               );
             })}
@@ -313,31 +251,14 @@ function ColumnSettingsDialog({
   );
 }
 
-function compareValues(a: unknown, b: unknown) {
-  const left = String(a ?? "").toLowerCase().trim();
-  const right = String(b ?? "").toLowerCase().trim();
-  return left.localeCompare(right, "es", { sensitivity: "base", numeric: true });
-}
-
-function sortRows(rows: ClinicRow[], sortModel: GridSortModel) {
-  if (!sortModel.length) return rows;
-
-  const [{ field, sort }] = sortModel;
-  if (!field || !sort) return rows;
-
-  const sorted = [...rows].sort((a, b) => {
-    const result = compareValues(a[field as keyof ClinicRow], b[field as keyof ClinicRow]);
-    return sort === "asc" ? result : -result;
-  });
-
-  return sorted;
-}
-
 export default function ClinicasPage() {
   const theme = useTheme();
 
-  const [rows, setRows] = useState<ClinicRow[]>(initialClinics);
+  const [rows, setRows] = useState<ClinicRow[]>([]);
+  const [totalRows, setTotalRows] = useState(0);
+
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"todas" | ClinicStatus>("todas");
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -347,6 +268,7 @@ export default function ClinicasPage() {
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [selectedClinic, setSelectedClinic] = useState<ClinicRow | null>(null);
+  const [statusSubmitting, setStatusSubmitting] = useState(false);
 
   const [columnsDialogOpen, setColumnsDialogOpen] = useState(false);
   const [columnVisibilityModel, setColumnVisibilityModel] =
@@ -357,7 +279,11 @@ export default function ClinicasPage() {
     pageSize: PAGE_SIZE,
   });
 
-  const [sortModel, setSortModel] = useState<GridSortModel>([]);
+  const [sortModel, setSortModel] = useState<GridSortModel>([
+    { field: "nombre", sort: "asc" },
+  ]);
+
+  const [loading, setLoading] = useState(false);
 
   const [toast, setToast] = useState<ToastState>({
     open: false,
@@ -365,60 +291,72 @@ export default function ClinicasPage() {
     message: "",
   });
 
-  const filteredRows = useMemo(() => {
-    const q = search.trim().toLowerCase();
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 350);
 
-    return rows.filter((row) => {
-      const matchesSearch =
-        !q ||
-        row.nombre.toLowerCase().includes(q) ||
-        row.razon_social.toLowerCase().includes(q) ||
-        row.rfc.toLowerCase().includes(q) ||
-        row.correo_contacto.toLowerCase().includes(q) ||
-        row.telefono.toLowerCase().includes(q);
-
-      const matchesStatus =
-        statusFilter === "todas" ? true : row.estado === statusFilter;
-
-      return matchesSearch && matchesStatus;
-    });
-  }, [rows, search, statusFilter]);
-
-  const sortedRows = useMemo(() => sortRows(filteredRows, sortModel), [filteredRows, sortModel]);
-
-  const totalRows = sortedRows.length;
-
-  const paginatedRows = useMemo(() => {
-    const start = paginationModel.page * PAGE_SIZE;
-    const end = start + PAGE_SIZE;
-    return sortedRows.slice(start, end);
-  }, [sortedRows, paginationModel.page]);
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
   useEffect(() => {
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
-  }, [search, statusFilter, sortModel]);
+  }, [debouncedSearch, statusFilter]);
+
+  const showToast = useCallback(
+    (severity: ToastState["severity"], message: string) => {
+      setToast({
+        open: true,
+        severity,
+        message,
+      });
+    },
+    []
+  );
+
+  const loadClinics = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      const activeSort = sortModel[0];
+      const sortField =
+        activeSort?.field && activeSort.field !== "rowActions"
+          ? activeSort.field
+          : "nombre";
+      const sortDirection = activeSort?.sort ?? "asc";
+
+      const { data } = await http.get<ClinicsListResponse>("/clinicas", {
+        params: {
+          page: paginationModel.page + 1,
+          pageSize: paginationModel.pageSize,
+          q: debouncedSearch || undefined,
+          estado: statusFilter === "todas" ? undefined : statusFilter,
+          sortField,
+          sortDirection,
+        },
+      });
+
+      setRows((data.items ?? []).map(normalizeClinic));
+      setTotalRows(data.total ?? 0);
+    } catch (error) {
+      setRows([]);
+      setTotalRows(0);
+      showToast("error", getErrorMessage(error, "No se pudieron cargar las clínicas."));
+    } finally {
+      setLoading(false);
+    }
+  }, [
+    debouncedSearch,
+    paginationModel.page,
+    paginationModel.pageSize,
+    showToast,
+    sortModel,
+    statusFilter,
+  ]);
 
   useEffect(() => {
-    const maxPage = Math.max(0, Math.ceil(totalRows / PAGE_SIZE) - 1);
-
-    if (paginationModel.page > maxPage) {
-      setPaginationModel((prev) => ({
-        ...prev,
-        page: maxPage,
-      }));
-    }
-  }, [totalRows, paginationModel.page]);
-
-  const showToast = (
-    severity: ToastState["severity"],
-    message: string
-  ) => {
-    setToast({
-      open: true,
-      severity,
-      message,
-    });
-  };
+    void loadClinics();
+  }, [loadClinics]);
 
   const openCreate = () => {
     setDialogMode("create");
@@ -436,26 +374,30 @@ export default function ClinicasPage() {
     try {
       setFormSubmitting(true);
 
+      const payload = {
+        nombre: values.nombre,
+        razon_social: values.razon_social,
+        rfc: values.rfc,
+        telefono: values.telefono,
+        correo_contacto: values.correo_contacto,
+        direccion: values.direccion,
+        estado: values.estado,
+      };
+
       if (dialogMode === "create") {
-        const next = { ...values, id: Date.now() };
-        setRows((prev) => [next, ...prev]);
+        await http.post("/clinicas", payload);
         showToast("success", "La clínica se agregó correctamente.");
+        setPaginationModel((prev) => ({ ...prev, page: 0 }));
       } else if (editingClinic) {
-        setRows((prev) =>
-          prev.map((row) =>
-            row.id === editingClinic.id
-              ? { ...row, ...values, id: editingClinic.id }
-              : row
-          )
-        );
+        await http.put(`/clinicas/${editingClinic.id}`, payload);
         showToast("success", "La clínica se actualizó correctamente.");
       }
 
       setDialogOpen(false);
       setEditingClinic(null);
-      setPaginationModel((prev) => ({ ...prev, page: 0 }));
-    } catch {
-      showToast("error", "No se pudo guardar la clínica.");
+      await loadClinics();
+    } catch (error) {
+      showToast("error", getErrorMessage(error, "No se pudo guardar la clínica."));
     } finally {
       setFormSubmitting(false);
     }
@@ -466,23 +408,22 @@ export default function ClinicasPage() {
     setConfirmOpen(true);
   };
 
-  const confirmToggleStatus = () => {
+  const confirmToggleStatus = async () => {
     if (!selectedClinic) return;
 
     try {
-      const nextState =
+      setStatusSubmitting(true);
+
+      const nextState: ClinicStatus =
         selectedClinic.estado === "activa" ? "suspendida" : "activa";
 
-      setRows((prev) =>
-        prev.map((row) =>
-          row.id === selectedClinic.id
-            ? {
-                ...row,
-                estado: nextState,
-              }
-            : row
-        )
-      );
+      if (nextState === "suspendida") {
+        await http.delete(`/clinicas/${selectedClinic.id}`);
+      } else {
+        await http.put(`/clinicas/${selectedClinic.id}`, {
+          estado: "activa",
+        });
+      }
 
       showToast(
         "success",
@@ -490,11 +431,17 @@ export default function ClinicasPage() {
           ? "La clínica fue suspendida correctamente."
           : "La clínica fue reactivada correctamente."
       );
-    } catch {
-      showToast("error", "No se pudo actualizar el estado de la clínica.");
-    } finally {
+
       setConfirmOpen(false);
       setSelectedClinic(null);
+      await loadClinics();
+    } catch (error) {
+      showToast(
+        "error",
+        getErrorMessage(error, "No se pudo actualizar el estado de la clínica.")
+      );
+    } finally {
+      setStatusSubmitting(false);
     }
   };
 
@@ -711,8 +658,10 @@ export default function ClinicasPage() {
         ),
       },
     ],
-    [theme.palette.mode, sortModel]
+    [sortModel, theme.palette.mode]
   );
+
+  const hasFilters = Boolean(debouncedSearch) || statusFilter !== "todas";
 
   return (
     <AdminLayout
@@ -800,7 +749,7 @@ export default function ClinicasPage() {
 
         <Box sx={{ width: "100%", minHeight: 420 }}>
           <DataGrid
-            rows={paginatedRows}
+            rows={rows}
             rowCount={totalRows}
             columns={columns}
             localeText={localeText}
@@ -811,7 +760,21 @@ export default function ClinicasPage() {
             onColumnVisibilityModelChange={setColumnVisibilityModel}
             sortingMode="server"
             sortModel={sortModel}
-            onSortModelChange={setSortModel}
+            onSortModelChange={(model) => {
+              if (!model.length) {
+                setSortModel([{ field: "nombre", sort: "asc" }]);
+                return;
+              }
+
+              const next = model[0];
+
+              if (!next || next.field === "rowActions") {
+                setSortModel([{ field: "nombre", sort: "asc" }]);
+                return;
+              }
+
+              setSortModel([next]);
+            }}
             paginationMode="server"
             pagination
             paginationModel={paginationModel}
@@ -822,8 +785,9 @@ export default function ClinicasPage() {
               })
             }
             pageSizeOptions={[PAGE_SIZE]}
+            loading={loading}
             slots={{
-              noRowsOverlay: EmptyState,
+              noRowsOverlay: () => <EmptyState loading={loading} hasFilters={hasFilters} />,
             }}
             sx={{
               border: 0,
@@ -918,10 +882,9 @@ export default function ClinicasPage() {
             ? "Esta acción deshabilitará su operación administrativa hasta reactivarla."
             : "La clínica volverá a estar disponible para operación administrativa."
         }
-        confirmText={
-          selectedClinic?.estado === "activa" ? "Suspender" : "Reactivar"
-        }
+        confirmText={selectedClinic?.estado === "activa" ? "Suspender" : "Reactivar"}
         onClose={() => {
+          if (statusSubmitting) return;
           setConfirmOpen(false);
           setSelectedClinic(null);
         }}

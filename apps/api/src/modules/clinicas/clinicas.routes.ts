@@ -7,27 +7,51 @@ export const clinicasRouter = Router();
 
 clinicasRouter.use(requireAuth, requireRole("super_admin"));
 
+const allowedSortFields = new Set([
+  "nombre",
+  "razon_social",
+  "rfc",
+  "telefono",
+  "correo_contacto",
+  "estado",
+  "createdAt",
+]);
+
 clinicasRouter.get("/", async (req, res) => {
   const page = Math.max(1, Number(req.query.page ?? 1));
   const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize ?? 10)));
   const q = String(req.query.q ?? "").trim();
+  const estado = String(req.query.estado ?? "").trim().toLowerCase();
+  const sortField = String(req.query.sortField ?? "createdAt").trim();
+  const sortDirection =
+    String(req.query.sortDirection ?? "desc").trim().toLowerCase() === "asc"
+      ? "asc"
+      : "desc";
 
-const where: Prisma.ClinicaWhereInput =
-  q.length > 0
-    ? {
-        OR: [
-          { nombre: { contains: q, mode: Prisma.QueryMode.insensitive } },
-          { razon_social: { contains: q, mode: Prisma.QueryMode.insensitive } },
-          { rfc: { contains: q, mode: Prisma.QueryMode.insensitive } },
-        ],
-      }
-    : {};
+  const where: Prisma.ClinicaWhereInput = {
+    ...(q.length > 0
+      ? {
+          OR: [
+            { nombre: { contains: q, mode: Prisma.QueryMode.insensitive } },
+            { razon_social: { contains: q, mode: Prisma.QueryMode.insensitive } },
+            { rfc: { contains: q, mode: Prisma.QueryMode.insensitive } },
+            { correo_contacto: { contains: q, mode: Prisma.QueryMode.insensitive } },
+            { telefono: { contains: q, mode: Prisma.QueryMode.insensitive } },
+          ],
+        }
+      : {}),
+    ...(estado === "activa" || estado === "suspendida" ? { estado } : {}),
+  };
+
+  const orderByField = allowedSortFields.has(sortField) ? sortField : "createdAt";
 
   const [total, items] = await Promise.all([
     prisma.clinica.count({ where }),
     prisma.clinica.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: {
+        [orderByField]: sortDirection,
+      },
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
@@ -47,7 +71,9 @@ clinicasRouter.post("/", async (req, res) => {
     estado,
   } = req.body ?? {};
 
-  if (!nombre) return res.status(400).json({ message: "nombre requerido" });
+  if (!nombre) {
+    return res.status(400).json({ message: "nombre requerido" });
+  }
 
   const created = await prisma.clinica.create({
     data: {
@@ -66,7 +92,10 @@ clinicasRouter.post("/", async (req, res) => {
 
 clinicasRouter.put("/:id", async (req, res) => {
   const id = Number(req.params.id);
-  if (!Number.isFinite(id)) return res.status(400).json({ message: "id inválido" });
+
+  if (!Number.isFinite(id)) {
+    return res.status(400).json({ message: "id inválido" });
+  }
 
   const updated = await prisma.clinica.update({
     where: { id },
@@ -78,7 +107,10 @@ clinicasRouter.put("/:id", async (req, res) => {
 
 clinicasRouter.delete("/:id", async (req, res) => {
   const id = Number(req.params.id);
-  if (!Number.isFinite(id)) return res.status(400).json({ message: "id inválido" });
+
+  if (!Number.isFinite(id)) {
+    return res.status(400).json({ message: "id inválido" });
+  }
 
   const updated = await prisma.clinica.update({
     where: { id },
