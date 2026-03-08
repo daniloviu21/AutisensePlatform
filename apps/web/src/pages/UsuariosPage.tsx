@@ -8,7 +8,6 @@ import {
   Search,
   SettingsOutlined,
   SwapVert,
-  VisibilityOutlined,
 } from "@mui/icons-material";
 import {
   alpha,

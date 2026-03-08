@@ -12,6 +12,7 @@ import MfaPage from "./pages/MfaPage";
 import DashboardPage from "./pages/DashboardPage";
 import ClinicasPage from "./pages/ClinicasPage";
 import UsuariosPage from "./pages/UsuariosPage";
+import ConfiguracionPage from "./pages/ConfiguracionPage";
 
 function PlaceholderPage({ title }: { title: string }) {
   return <div style={{ padding: 24 }}>{title}</div>;
@@ -86,6 +87,15 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
               element={
                 <ProtectedRoute roles={["super_admin"]}>
                   <PlaceholderPage title="Suscripciones" />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/configuracion"
+              element={
+                <ProtectedRoute roles={["super_admin"]}>
+                  <ConfiguracionPage />
                 </ProtectedRoute>
               }
             />

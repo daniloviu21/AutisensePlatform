@@ -7,10 +7,11 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  Menu,
+  MenuItem,
   Stack,
   Tooltip,
   Typography,
-  useTheme,
 } from "@mui/material";
 import {
   ApartmentOutlined,
@@ -25,6 +26,9 @@ import {
   PersonOutlineOutlined,
   ReceiptLongOutlined,
   Groups2Outlined,
+  SettingsOutlined,
+  AccountCircleOutlined,
+  LockOutlined,
 } from "@mui/icons-material";
 import { useMemo, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
@@ -36,6 +40,7 @@ type AdminLayoutProps = {
   subtitle?: string;
   actions?: React.ReactNode;
   children: React.ReactNode;
+  hideSidebar?: boolean;
 };
 
 type NavItem = {
@@ -49,13 +54,15 @@ export default function AdminLayout({
   subtitle,
   actions,
   children,
+  hideSidebar = false,
 }: AdminLayoutProps) {
-  const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const { mode, toggle } = useColorMode();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
+
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [accountAnchor, setAccountAnchor] = useState<null | HTMLElement>(null);
 
   const navItems = useMemo<NavItem[]>(
     () => [
@@ -200,22 +207,26 @@ export default function AdminLayout({
   return (
     <Box sx={{ minHeight: "100vh", background: shellBg }}>
       <Box sx={{ display: "flex", minHeight: "100vh" }}>
-        <Box sx={{ display: { xs: "none", lg: "block" } }}>{content}</Box>
+        {!hideSidebar ? (
+          <Box sx={{ display: { xs: "none", lg: "block" } }}>{content}</Box>
+        ) : null}
 
-        <Drawer
-          open={mobileOpen}
-          onClose={() => setMobileOpen(false)}
-          sx={{
-            display: { xs: "block", lg: "none" },
-            "& .MuiDrawer-paper": {
-              width: 272,
-              borderRight: "none",
-              backgroundImage: "none",
-            },
-          }}
-        >
-          {content}
-        </Drawer>
+        {!hideSidebar ? (
+          <Drawer
+            open={mobileOpen}
+            onClose={() => setMobileOpen(false)}
+            sx={{
+              display: { xs: "block", lg: "none" },
+              "& .MuiDrawer-paper": {
+                width: 272,
+                borderRight: "none",
+                backgroundImage: "none",
+              },
+            }}
+          >
+            {content}
+          </Drawer>
+        ) : null}
 
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Box
@@ -235,12 +246,14 @@ export default function AdminLayout({
             }}
           >
             <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0 }}>
-              <IconButton
-                onClick={() => setMobileOpen(true)}
-                sx={{ display: { xs: "inline-flex", lg: "none" } }}
-              >
-                <MenuIcon />
-              </IconButton>
+              {!hideSidebar ? (
+                <IconButton
+                  onClick={() => setMobileOpen(true)}
+                  sx={{ display: { xs: "inline-flex", lg: "none" } }}
+                >
+                  <MenuIcon />
+                </IconButton>
+              ) : null}
 
               <Box sx={{ minWidth: 0 }}>
                 <Typography
@@ -271,15 +284,94 @@ export default function AdminLayout({
                 </IconButton>
               </Tooltip>
 
-              <IconButton>
-                <NotificationsNoneOutlined />
-              </IconButton>
+              <Tooltip title="Notificaciones">
+                <IconButton>
+                  <NotificationsNoneOutlined />
+                </IconButton>
+              </Tooltip>
+
+              <Tooltip title="Cuenta y configuración">
+                <IconButton onClick={(e) => setAccountAnchor(e.currentTarget)}>
+                  <SettingsOutlined />
+                </IconButton>
+              </Tooltip>
             </Stack>
           </Box>
 
           <Box sx={{ px: { xs: 2, md: 3 }, py: 3 }}>{children}</Box>
         </Box>
       </Box>
+
+      <Menu
+        anchorEl={accountAnchor}
+        open={!!accountAnchor}
+        onClose={() => setAccountAnchor(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "right" }}
+        PaperProps={{ sx: { minWidth: 240, borderRadius: 2 } }}
+      >
+        <Box sx={{ px: 2, py: 1.5 }}>
+          <Typography variant="body2" color="text.secondary">
+            Cuenta actual
+          </Typography>
+          <Typography sx={{ fontWeight: 700 }} noWrap>
+            {user?.correo ?? "Sin sesión"}
+          </Typography>
+        </Box>
+
+        <Divider />
+
+        <MenuItem
+          onClick={() => {
+            setAccountAnchor(null);
+            navigate("/configuracion?tab=perfil");
+          }}
+        >
+          <ListItemIcon>
+            <AccountCircleOutlined fontSize="small" />
+          </ListItemIcon>
+          Mi perfil
+        </MenuItem>
+
+        <MenuItem
+          onClick={() => {
+            setAccountAnchor(null);
+            navigate("/configuracion?tab=seguridad");
+          }}
+        >
+          <ListItemIcon>
+            <LockOutlined fontSize="small" />
+          </ListItemIcon>
+          Inicio de sesión y seguridad
+        </MenuItem>
+
+        <MenuItem
+          onClick={() => {
+            setAccountAnchor(null);
+            navigate("/configuracion?tab=ayuda");
+          }}
+        >
+          <ListItemIcon>
+            <NotificationsNoneOutlined fontSize="small" />
+          </ListItemIcon>
+          Ayuda
+        </MenuItem>
+
+        <Divider />
+
+        <MenuItem
+          onClick={() => {
+            setAccountAnchor(null);
+            logout();
+            navigate("/login", { replace: true });
+          }}
+        >
+          <ListItemIcon>
+            <LogoutOutlined fontSize="small" />
+          </ListItemIcon>
+          Cerrar sesión
+        </MenuItem>
+      </Menu>
     </Box>
   );
 }
