@@ -1,11 +1,11 @@
 import { Router } from "express";
 import { prisma } from "../../db/prisma";
 import { Prisma } from "@prisma/client";
-import { requireAuth, requireRole } from "../../middlewares/auth";
+import { allowRoles, requireAuth } from "../../middlewares/auth";
 
 export const clinicasRouter = Router();
 
-clinicasRouter.use(requireAuth, requireRole("super_admin"));
+clinicasRouter.use(requireAuth, allowRoles("super_admin"));
 
 const allowedSortFields = new Set([
   "nombre",

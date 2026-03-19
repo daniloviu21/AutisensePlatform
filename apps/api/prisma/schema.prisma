@@ -7,38 +7,168 @@ datasource db {
 }
 
 model Role {
-  id          Int      @id @default(autoincrement())
-  rol         String   @unique
-  descripcion String?
-  usuarios    Usuario[]
+  id            Int            @id @default(autoincrement())
+  rol           String         @unique
+  descripcion    String?
+  usuarios      Usuario[]
 }
 
 model Clinica {
-  id               Int      @id @default(autoincrement())
+  id               Int            @id @default(autoincrement())
   nombre           String
   razon_social     String?
   rfc              String?
   telefono         String?
   correo_contacto  String?
   direccion        String?
-  estado           String   @default("activa") // activa, suspendida
+  estado           String         @default("activa")
   usuarios         Usuario[]
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  profesionales    Profesional[]
+  tutores          Tutor[]
+  pacientes        Paciente[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 }
 
 model Usuario {
-  id            Int      @id @default(autoincrement())
-  correo        String   @unique
-  password_hash String
-  estado        String   @default("activo") // activo, suspendido, pendiente
+  id                   Int            @id @default(autoincrement())
+  correo               String         @unique
+  password_hash        String
+  estado               String         @default("activo")
+  must_change_password Boolean        @default(false)
+  mfaEnabled           Boolean        @default(false)
 
-  id_rol        Int
-  rol           Role     @relation(fields: [id_rol], references: [id])
+  id_rol               Int
+  rol                  Role           @relation(fields: [id_rol], references: [id])
 
-  id_clinica    Int?
-  clinica       Clinica? @relation(fields: [id_clinica], references: [id])
+  id_clinica           Int?
+  clinica              Clinica?       @relation(fields: [id_clinica], references: [id])
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  profesional          Profesional?
+  tutor                Tutor?
+  refreshTokens        RefreshToken[]
+  mfaChallenges        MfaChallenge[]
+  tutorPacientes       TutorPaciente[]
+
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+}
+
+model Profesional {
+  id             Int       @id @default(autoincrement())
+  id_usuario     Int       @unique
+  usuario        Usuario   @relation(fields: [id_usuario], references: [id])
+
+  id_clinica     Int
+  clinica        Clinica   @relation(fields: [id_clinica], references: [id])
+
+  nombre         String
+  ap_paterno     String
+  ap_materno     String?
+  telefono       String?
+  especialidad   String
+  organizacion   String?
+
+  foto_url       String?
+  foto_public_id String?
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([id_clinica])
+  @@index([especialidad])
+}
+
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  tokenHash String   @unique
+  userId    Int
+  usuario   Usuario  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model MfaChallenge {
+  id             String   @id @default(cuid())
+  userId         Int
+  usuario        Usuario  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash       String
+  expiresAt      DateTime
+  used           Boolean  @default(false)
+  failedAttempts Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ─── NÚcleo clínico ───────────────────────────────────────────────────────────
+
+model Paciente {
+  id                      Int             @id @default(autoincrement())
+
+  id_clinica              Int
+  clinica                 Clinica         @relation(fields: [id_clinica], references: [id])
+
+  nombre                  String
+  ap_paterno              String
+  ap_materno              String?
+  fecha_nacimiento        DateTime        @db.Date
+  sexo                    String          // M, F, Otro
+  escolaridad             String?
+
+  // Datos clínicos
+  diagnostico_presuntivo  String?
+  antecedentes_relevantes String?
+  notas_generales         String?
+
+  estado                  String          @default("activo") // activo, inactivo
+
+  tutores                 TutorPaciente[]
+
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+
+  @@index([id_clinica])
+  @@index([estado])
+}
+
+/// Tabla puente Paciente ↔ Usuario (rol=tutor).
+/// Preparada para migrar a una entidad Tutor independiente en el futuro.
+model TutorPaciente {
+  id           Int      @id @default(autoincrement())
+  id_paciente  Int
+  paciente     Paciente @relation(fields: [id_paciente], references: [id], onDelete: Cascade)
+  id_usuario   Int
+  usuario      Usuario  @relation(fields: [id_usuario], references: [id])
+  parentesco   String   // madre, padre, tutor legal, etc.
+  es_principal Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  @@unique([id_paciente, id_usuario])
+  @@index([id_paciente])
+}
+
+// ─── Perfil de Tutor (1:1 con Usuario) ───────────────────────────────────────
+/// Datos personales del tutor. La cuenta de acceso es Usuario (role=tutor).
+/// Sigue el mismo patrón que Profesional.
+model Tutor {
+  id           Int      @id @default(autoincrement())
+
+  id_usuario   Int      @unique
+  usuario      Usuario  @relation(fields: [id_usuario], references: [id])
+
+  id_clinica   Int
+  clinica      Clinica  @relation(fields: [id_clinica], references: [id])
+
+  nombre       String
+  ap_paterno   String
+  ap_materno   String?
+  telefono     String?
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([id_clinica])
 }

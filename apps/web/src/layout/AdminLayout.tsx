@@ -47,6 +47,7 @@ type NavItem = {
   label: string;
   path: string;
   icon: React.ReactNode;
+  roles?: string[];
 };
 
 export default function AdminLayout({
@@ -64,18 +65,20 @@ export default function AdminLayout({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [accountAnchor, setAccountAnchor] = useState<null | HTMLElement>(null);
 
-  const navItems = useMemo<NavItem[]>(
-    () => [
-      { label: "Dashboard", path: "/dashboard", icon: <DashboardOutlined /> },
-      { label: "Clínicas", path: "/clinicas", icon: <ApartmentOutlined /> },
-      { label: "Usuarios", path: "/usuarios", icon: <PeopleAltOutlined /> },
-      { label: "Profesionales", path: "/profesionales", icon: <PsychologyAltOutlined /> },
-      { label: "Tutores", path: "/tutores", icon: <PersonOutlineOutlined /> },
-      { label: "Pacientes", path: "/pacientes", icon: <Groups2Outlined /> },
-      { label: "Suscripciones", path: "/suscripciones", icon: <ReceiptLongOutlined /> },
-    ],
-    []
-  );
+  const navItems = useMemo<NavItem[]>(() => {
+    const rawItems: NavItem[] = [
+      { label: "Dashboard", path: "/dashboard", icon: <DashboardOutlined />, roles: ["super_admin", "clinic_admin", "profesional", "tutor"] },
+      { label: "Clínicas", path: "/clinicas", icon: <ApartmentOutlined />, roles: ["super_admin", "clinic_admin"] },
+      { label: "Usuarios", path: "/usuarios", icon: <PeopleAltOutlined />, roles: ["super_admin", "clinic_admin"] },
+      { label: "Profesionales", path: "/profesionales", icon: <PsychologyAltOutlined />, roles: ["super_admin", "clinic_admin"] },
+      { label: "Tutores", path: "/tutores", icon: <PersonOutlineOutlined />, roles: ["super_admin", "clinic_admin", "profesional"] },
+      { label: "Pacientes", path: "/pacientes", icon: <Groups2Outlined />, roles: ["super_admin", "clinic_admin", "profesional"] },
+      { label: "Suscripciones", path: "/suscripciones", icon: <ReceiptLongOutlined />, roles: ["super_admin", "clinic_admin"] },
+    ];
+    
+    if (!user) return [];
+    return rawItems.filter((item) => !item.roles || item.roles.includes(user.role));
+  }, [user]);
 
   const shellBg =
     mode === "dark"
@@ -101,7 +104,9 @@ export default function AdminLayout({
     <Box
       sx={{
         width: 272,
-        height: "100%",
+        height: "100vh",
+        position: "sticky",
+        top: 0,
         display: "flex",
         flexDirection: "column",
         background: sidebarBg,
@@ -176,8 +181,8 @@ export default function AdminLayout({
       <Box sx={{ p: 2 }}>
         <Divider sx={{ mb: 1.5 }} />
         <ListItemButton
-          onClick={() => {
-            logout();
+          onClick={async () => {
+            await logout();
             navigate("/login", { replace: true });
           }}
           sx={{
@@ -360,9 +365,9 @@ export default function AdminLayout({
         <Divider />
 
         <MenuItem
-          onClick={() => {
+          onClick={async () => {
             setAccountAnchor(null);
-            logout();
+            await logout();
             navigate("/login", { replace: true });
           }}
         >

@@ -59,11 +59,31 @@ export default function LoginPage() {
   const onSubmit = async (data: FormData) => {
     setServerError(null);
     setLoading(true);
+
     try {
-      await login(data.correo, data.password);
+      const result = await login(data.correo, data.password);
+
+      // ── MFA requerido → navegar a pantalla de verificación ─────────────────
+      if (result?.requiresMfa) {
+        nav("/mfa", {
+          state: { challengeId: result.challengeId, correo: data.correo },
+          replace: true,
+        });
+        return;
+      }
+
+      // ── Login directo (sin MFA) ─────────────────────────────────────────────
+      const rawUser = localStorage.getItem("user");
+      const user = rawUser ? JSON.parse(rawUser) : null;
+
+      if (user?.mustChangePassword) {
+        nav("/cambiar-password", { replace: true });
+        return;
+      }
+
       nav("/dashboard", { replace: true });
     } catch (e: any) {
-      setServerError(e?.response?.data?.message ?? "No se pudo iniciar sesión");
+      setServerError(e?.response?.data?.message ?? e?.message ?? "No se pudo iniciar sesión");
     } finally {
       setLoading(false);
     }
@@ -78,7 +98,6 @@ export default function LoginPage() {
     []
   );
 
-  // Paleta AutiSense
   const teal = "#2A9D8F";
   const blue = "#457B9D";
 
@@ -123,7 +142,6 @@ export default function LoginPage() {
           bgcolor: "transparent",
         }}
       >
-        {/* Panel izquierdo (desktop) */}
         <Box
           sx={{
             display: { xs: "none", md: "flex" },
@@ -152,40 +170,10 @@ export default function LoginPage() {
 
           <Box
             sx={{
-              position: "absolute",
-              width: 320,
-              height: 320,
-              borderRadius: "50%",
-              border: "1px solid rgba(255,255,255,0.10)",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -58%)",
-            }}
-          />
-          <Box
-            sx={{
-              position: "absolute",
-              width: 190,
-              height: 190,
-              borderRadius: "50%",
-              border: "1px solid rgba(255,255,255,0.10)",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -58%)",
-            }}
-          />
-
-          <Box
-            sx={{
               position: "relative",
               zIndex: 2,
               width: "100%",
               maxWidth: 430,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "flex-start",
-              justifyContent: "center",
-              minHeight: "100%",
             }}
           >
             <Typography
@@ -224,7 +212,6 @@ export default function LoginPage() {
           </Box>
         </Box>
 
-        {/* Panel derecho */}
         <Box
           sx={{
             position: "relative",
@@ -236,14 +223,12 @@ export default function LoginPage() {
             py: { xs: 4, sm: 4.5, md: 5 },
           }}
         >
-          {/* SOLO toggle arriba derecha */}
           <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 3 }}>
             <IconButton onClick={toggle} aria-label="toggle theme" size="small">
               {mode === "dark" ? <LightMode /> : <DarkMode />}
             </IconButton>
           </Box>
 
-          {/* Form */}
           <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
             <Box sx={{ width: "100%", maxWidth: 420, mx: "auto" }}>
               <Typography
@@ -266,7 +251,6 @@ export default function LoginPage() {
               )}
 
               <Stack component="form" spacing={2.2} onSubmit={handleSubmit(onSubmit)}>
-                {/* Inputs flotantes: label (no placeholder) */}
                 <TextField
                   label="Correo"
                   variant="outlined"
@@ -359,7 +343,6 @@ export default function LoginPage() {
             </Box>
           </Box>
 
-          {/* Footer centrado */}
           <Box sx={{ pt: 2, mt: 2, textAlign: "center" }}>
             <Typography
               variant="caption"

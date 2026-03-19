@@ -2,11 +2,12 @@ import { Router } from "express";
 import bcrypt from "bcrypt";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma";
-import { requireAuth, requireRole } from "../../middlewares/auth";
+import { allowRoles, requireAuth, requireMfa } from "../../middlewares/auth";
+import { buildUsuarioScope, getSafeClinicScope } from "../../utils/policies";
 
 export const usuariosRouter = Router();
 
-usuariosRouter.use(requireAuth, requireRole("super_admin"));
+usuariosRouter.use(requireAuth, requireMfa, allowRoles("super_admin", "clinic_admin"));
 
 const VALID_ROLES = ["super_admin", "clinic_admin", "profesional", "tutor"] as const;
 const VALID_STATES = ["activo", "suspendido", "pendiente"] as const;
@@ -35,6 +36,7 @@ function sanitizeUserResponse(user: any) {
     id: user.id,
     correo: user.correo,
     estado: user.estado,
+    mfaEnabled: user.mfaEnabled ?? false,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
     rol: user.rol
@@ -66,33 +68,37 @@ usuariosRouter.get("/", async (req, res) => {
     const estado = String(req.query.estado ?? "").trim();
     const clinicaIdRaw = String(req.query.clinicaId ?? "").trim();
 
-    const where: Prisma.UsuarioWhereInput = {};
+    // 🛡 Base Scope por rol
+    const baseScope = buildUsuarioScope(req.user!);
+
+    const andFilters: Prisma.UsuarioWhereInput[] = [baseScope];
 
     if (q.length > 0) {
-      where.OR = [
-        { correo: { contains: q, mode: Prisma.QueryMode.insensitive } },
-        { rol: { rol: { contains: q, mode: Prisma.QueryMode.insensitive } } },
-        { clinica: { nombre: { contains: q, mode: Prisma.QueryMode.insensitive } } },
-      ];
+      andFilters.push({
+        OR: [
+          { correo: { contains: q, mode: Prisma.QueryMode.insensitive } },
+          { rol: { rol: { contains: q, mode: Prisma.QueryMode.insensitive } } },
+          { clinica: { nombre: { contains: q, mode: Prisma.QueryMode.insensitive } } },
+        ],
+      });
     }
 
     if (role.length > 0 && isValidRole(role)) {
-      where.rol = {
-        rol: role,
-      };
+      andFilters.push({ rol: { rol: role } });
     }
 
     if (estado.length > 0 && isValidState(estado)) {
-      where.estado = estado;
+      andFilters.push({ estado });
     }
 
-    if (clinicaIdRaw.length > 0) {
+    // Filtro adicional solicitado (solo útil si es super_admin)
+    if (req.user?.role === "super_admin" && clinicaIdRaw.length > 0) {
       const clinicaId = Number(clinicaIdRaw);
-      if (!Number.isFinite(clinicaId)) {
-        return res.status(400).json({ message: "clinicaId inválido" });
-      }
-      where.id_clinica = clinicaId;
+      if (!Number.isFinite(clinicaId)) return res.status(400).json({ message: "clinicaId inválido" });
+      andFilters.push({ id_clinica: clinicaId });
     }
+
+    const where: Prisma.UsuarioWhereInput = andFilters.length > 0 ? { AND: andFilters } : {};
 
     const [total, items] = await Promise.all([
       prisma.usuario.count({ where }),
@@ -167,14 +173,22 @@ usuariosRouter.post("/", async (req, res) => {
       return res.status(400).json({ message: "estado inválido" });
     }
 
+    // 🛡 Jerarquía de roles
+    if (req.user!.role === "clinic_admin" && ["super_admin", "clinic_admin"].includes(roleClean)) {
+      return res.status(403).json({ message: "No puedes crear usuarios administradores" });
+    }
+
+    // 🛡 Scope de Clínica seguro
+    const safeClinicId = getSafeClinicScope(req.user!, parsedClinicaId);
+
     if (roleClean === "super_admin") {
-      if (parsedClinicaId !== null) {
+      if (safeClinicId !== null) {
         return res
           .status(400)
           .json({ message: "super_admin no debe tener clínica asignada" });
       }
     } else {
-      if (parsedClinicaId === null || !Number.isFinite(parsedClinicaId)) {
+      if (safeClinicId === null || !Number.isFinite(safeClinicId)) {
         return res
           .status(400)
           .json({ message: "clinicaId requerido para este rol" });
@@ -197,9 +211,9 @@ usuariosRouter.post("/", async (req, res) => {
       return res.status(400).json({ message: "Rol no encontrado" });
     }
 
-    if (parsedClinicaId !== null) {
+    if (safeClinicId !== null) {
       const clinica = await prisma.clinica.findUnique({
-        where: { id: parsedClinicaId },
+        where: { id: safeClinicId },
       });
 
       if (!clinica) {
@@ -215,7 +229,7 @@ usuariosRouter.post("/", async (req, res) => {
         password_hash: passwordHash,
         estado: estadoClean,
         id_rol: foundRole.id,
-        id_clinica: roleClean === "super_admin" ? null : parsedClinicaId,
+        id_clinica: roleClean === "super_admin" ? null : safeClinicId,
       },
       include: {
         rol: true,
@@ -251,13 +265,14 @@ usuariosRouter.put("/:id", async (req, res) => {
       clinicaId?: number | null;
     };
 
-    const existing = await prisma.usuario.findUnique({
-      where: { id },
+    const scope = buildUsuarioScope(req.user!);
+    const existing = await prisma.usuario.findFirst({
+      where: { id, ...scope },
       include: { rol: true, clinica: true },
     });
 
     if (!existing) {
-      return res.status(404).json({ message: "Usuario no encontrado" });
+      return res.status(404).json({ message: "Usuario no encontrado o fuera de tu alcance" });
     }
 
     const correoClean = correo ? normalizeEmail(correo) : existing.correo;
@@ -289,14 +304,21 @@ usuariosRouter.put("/:id", async (req, res) => {
       return res.status(400).json({ message: "estado inválido" });
     }
 
+    // 🛡 Jerarquía de roles en edición
+    if (req.user!.role === "clinic_admin" && ["super_admin", "clinic_admin"].includes(roleClean)) {
+      return res.status(403).json({ message: "No puedes asignar roles de administrador" });
+    }
+
+    const safeClinicId = getSafeClinicScope(req.user!, parsedClinicaId);
+
     if (roleClean === "super_admin") {
-      if (parsedClinicaId !== null) {
+      if (safeClinicId !== null) {
         return res
           .status(400)
           .json({ message: "super_admin no debe tener clínica asignada" });
       }
     } else {
-      if (parsedClinicaId === null || !Number.isFinite(parsedClinicaId)) {
+      if (safeClinicId === null || !Number.isFinite(safeClinicId)) {
         return res
           .status(400)
           .json({ message: "clinicaId requerido para este rol" });
@@ -322,9 +344,9 @@ usuariosRouter.put("/:id", async (req, res) => {
       return res.status(400).json({ message: "Rol no encontrado" });
     }
 
-    if (parsedClinicaId !== null) {
+    if (safeClinicId !== null) {
       const clinica = await prisma.clinica.findUnique({
-        where: { id: parsedClinicaId },
+        where: { id: safeClinicId },
       });
 
       if (!clinica) {
@@ -339,7 +361,7 @@ usuariosRouter.put("/:id", async (req, res) => {
       clinica:
         roleClean === "super_admin"
           ? { disconnect: true }
-          : { connect: { id: parsedClinicaId as number } },
+          : { connect: { id: safeClinicId as number } },
     };
 
     if (password && password.trim().length > 0) {
@@ -382,9 +404,19 @@ usuariosRouter.patch("/:id/status", async (req, res) => {
       return res.status(400).json({ message: "estado inválido" });
     }
 
-    const existing = await prisma.usuario.findUnique({ where: { id } });
+    const scope = buildUsuarioScope(req.user!);
+    const existing = await prisma.usuario.findFirst({ 
+      where: { id, ...scope },
+      include: { rol: true } 
+    });
+    
     if (!existing) {
-      return res.status(404).json({ message: "Usuario no encontrado" });
+      return res.status(404).json({ message: "Usuario no encontrado o fuera de tu alcance" });
+    }
+
+    // 🛡 Jerarquía de roles: clinic_admin no puede suspender a otro admin
+    if (req.user!.role === "clinic_admin" && ["super_admin", "clinic_admin"].includes(existing.rol.rol)) {
+      return res.status(403).json({ message: "No puedes modificar el estado de administradores" });
     }
 
     const updated = await prisma.usuario.update({
@@ -400,5 +432,56 @@ usuariosRouter.patch("/:id/status", async (req, res) => {
   } catch (error) {
     console.error("PATCH /usuarios/:id/status error:", error);
     return res.status(500).json({ message: "No se pudo actualizar el estado" });
+  }
+});
+
+// ─── PATCH /usuarios/:id/mfa ──────────────────────────────────────────────────
+
+usuariosRouter.patch("/:id/mfa", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ message: "id inválido" });
+    }
+
+    const { enabled } = (req.body ?? {}) as { enabled?: unknown };
+
+    if (typeof enabled !== "boolean") {
+      return res.status(400).json({ message: "El campo 'enabled' debe ser booleano" });
+    }
+
+    const scope = buildUsuarioScope(req.user!);
+    const existing = await prisma.usuario.findFirst({ 
+      where: { id, ...scope },
+      include: { rol: true }
+    });
+    
+    if (!existing) {
+      return res.status(404).json({ message: "Usuario no encontrado o fuera de tu alcance" });
+    }
+
+    // 🛡 Jerarquía
+    if (req.user!.role === "clinic_admin" && ["super_admin", "clinic_admin"].includes(existing.rol.rol)) {
+      return res.status(403).json({ message: "No puedes modificar administradores" });
+    }
+
+    const updated = await prisma.usuario.update({
+      where: { id },
+      data: { mfaEnabled: enabled },
+      include: { rol: true, clinica: true },
+    });
+
+    // Si se desactiva MFA, invalida todos sus challenges activos
+    if (!enabled) {
+      await prisma.mfaChallenge.updateMany({
+        where: { userId: id, used: false },
+        data: { used: true },
+      });
+    }
+
+    return res.json(sanitizeUserResponse(updated));
+  } catch (error) {
+    console.error("PATCH /usuarios/:id/mfa error:", error);
+    return res.status(500).json({ message: "No se pudo actualizar el MFA" });
   }
 });

@@ -1,5 +1,5 @@
-import { Navigate } from "react-router-dom";
-import { useAuth } from "./AuthContext";
+import { Navigate, useLocation } from "react-router-dom";
+import { useAuth, type UserRole } from "./AuthContext";
 import type { JSX } from "react";
 
 export function ProtectedRoute({
@@ -7,10 +7,32 @@ export function ProtectedRoute({
   roles,
 }: {
   children: JSX.Element;
-  roles?: Array<"super_admin" | "clinic_admin" | "profesional" | "tutor">;
+  roles?: UserRole[];
 }) {
   const { user } = useAuth();
-  if (!user) return <Navigate to="/login" replace />;
-  if (roles && !roles.includes(user.role)) return <Navigate to="/unauthorized" replace />;
+  const location = useLocation();
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (
+    user.mustChangePassword &&
+    location.pathname !== "/cambiar-password"
+  ) {
+    return <Navigate to="/cambiar-password" replace />;
+  }
+
+  if (
+    !user.mustChangePassword &&
+    location.pathname === "/cambiar-password"
+  ) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  if (roles && !roles.includes(user.role)) {
+    return <Navigate to="/unauthorized" replace />;
+  }
+
   return children;
 }

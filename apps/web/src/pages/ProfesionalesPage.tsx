@@ -16,7 +16,6 @@ import {
   Box,
   Button,
   Checkbox,
-  Chip,
   CircularProgress,
   Dialog,
   DialogActions,
@@ -49,37 +48,61 @@ import { esES } from "@mui/x-data-grid/locales";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { http } from "../api/http";
-import AdminLayout from "../layout/AdminLayout";
-import ClinicFormDialog from "../components/clinicas/ClinicFormDialog";
-import type {
-  ClinicFormValues,
-  ClinicStatus,
-} from "../components/clinicas/ClinicFormDialog";
-import ConfirmActionDialog from "../components/clinicas/ConfirmActionDialog";
 import { useAuth } from "../auth/AuthContext";
+import ProfessionalFormDialog, {
+  type ClinicOption,
+  type ProfessionalFormValues,
+  type ProfessionalStatus,
+} from "../components/profesionales/ProfessionalFormDialog";
+import ConfirmProfessionalActionDialog from "../components/profesionales/ConfirmProfessionalActionDialog";
+import AdminLayout from "../layout/AdminLayout";
 
-type ClinicRow = ClinicFormValues & {
+type ProfessionalRow = ProfessionalFormValues & {
   id: number;
+  clinicaNombre: string | null;
 };
 
-type ApiClinic = {
+type ApiProfessional = {
   id: number;
   nombre: string;
-  razon_social: string | null;
-  rfc: string | null;
+  ap_paterno: string;
+  ap_materno: string | null;
   telefono: string | null;
-  correo_contacto: string | null;
-  direccion: string | null;
-  estado: ClinicStatus;
-  createdAt?: string;
-  updatedAt?: string;
+  especialidad: string;
+  organizacion: string | null;
+  foto_url: string | null;
+  foto_public_id: string | null;
+  id_usuario: number;
+  id_clinica: number;
+  usuario: {
+    id: number;
+    correo: string;
+    estado: ProfessionalStatus;
+    must_change_password: boolean;
+  } | null;
+  clinica: {
+    id: number;
+    nombre: string;
+    estado: string;
+  } | null;
+};
+
+type ProfessionalsListResponse = {
+  page: number;
+  pageSize: number;
+  total: number;
+  items: ApiProfessional[];
 };
 
 type ClinicsListResponse = {
   page: number;
   pageSize: number;
   total: number;
-  items: ApiClinic[];
+  items: Array<{
+    id: number;
+    nombre: string;
+    estado: string;
+  }>;
 };
 
 type ToastState = {
@@ -96,25 +119,34 @@ const localeText = {
 };
 
 const initialVisibilityModel: GridColumnVisibilityModel = {
-  nombre: true,
-  razon_social: true,
-  rfc: true,
-  telefono: true,
-  correo_contacto: true,
+  profesional: true,
+  especialidad: true,
+  organizacion: true,
+  clinicaNombre: true,
   estado: true,
   rowActions: true,
 };
 
-function normalizeClinic(apiClinic: ApiClinic): ClinicRow {
+function collapseSpaces(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function normalizeProfessional(item: ApiProfessional): ProfessionalRow {
   return {
-    id: apiClinic.id,
-    nombre: apiClinic.nombre ?? "",
-    razon_social: apiClinic.razon_social ?? "",
-    rfc: apiClinic.rfc ?? "",
-    telefono: apiClinic.telefono ?? "",
-    correo_contacto: apiClinic.correo_contacto ?? "",
-    direccion: apiClinic.direccion ?? "",
-    estado: apiClinic.estado ?? "suspendida",
+    id: item.id,
+    correo: item.usuario?.correo ?? "",
+    password: "",
+    estado: item.usuario?.estado ?? "activo",
+    clinicaId: item.id_clinica ?? null,
+    clinicaNombre: item.clinica?.nombre ?? null,
+    nombre: item.nombre ?? "",
+    ap_paterno: item.ap_paterno ?? "",
+    ap_materno: item.ap_materno ?? "",
+    telefono: item.telefono ?? "",
+    especialidad: item.especialidad ?? "",
+    organizacion: item.organizacion ?? "",
+    foto_url: item.foto_url ?? "",
+    foto_public_id: item.foto_public_id ?? "",
   };
 }
 
@@ -124,6 +156,59 @@ function getErrorMessage(error: unknown, fallback: string) {
     (error as { message?: string })?.message;
 
   return typeof message === "string" && message.trim() ? message : fallback;
+}
+
+function compareValues(a: unknown, b: unknown) {
+  const left = String(a ?? "").toLowerCase().trim();
+  const right = String(b ?? "").toLowerCase().trim();
+  return left.localeCompare(right, "es", { sensitivity: "base", numeric: true });
+}
+
+function statusColor(status: ProfessionalStatus) {
+  if (status === "activo") {
+    return {
+      color: "#0F766E",
+      backgroundColor: alpha("#2A9D8F", 0.14),
+      label: "Activo",
+    };
+  }
+
+  if (status === "pendiente") {
+    return {
+      color: "#9A3412",
+      backgroundColor: alpha("#F59E0B", 0.18),
+      label: "Pendiente",
+    };
+  }
+
+  return {
+    color: "#B91C1C",
+    backgroundColor: alpha("#EF4444", 0.14),
+    label: "Suspendido",
+  };
+}
+
+function sortRows(rows: ProfessionalRow[], sortModel: GridSortModel) {
+  if (!sortModel.length) return rows;
+
+  const [{ field, sort }] = sortModel;
+  if (!field || !sort) return rows;
+
+  return [...rows].sort((a, b) => {
+    if (field === "profesional") {
+      const aName = collapseSpaces(`${a.nombre} ${a.ap_paterno} ${a.ap_materno}`);
+      const bName = collapseSpaces(`${b.nombre} ${b.ap_paterno} ${b.ap_materno}`);
+      const result = compareValues(aName, bName);
+      return sort === "asc" ? result : -result;
+    }
+
+    const result = compareValues(
+      a[field as keyof ProfessionalRow],
+      b[field as keyof ProfessionalRow]
+    );
+
+    return sort === "asc" ? result : -result;
+  });
 }
 
 function EmptyState({
@@ -142,7 +227,7 @@ function EmptyState({
         sx={{ minHeight: 240, height: "100%", px: 2, textAlign: "center" }}
       >
         <CircularProgress size={28} />
-        <Typography color="text.secondary">Cargando clínicas...</Typography>
+        <Typography color="text.secondary">Cargando profesionales...</Typography>
       </Stack>
     );
   }
@@ -152,20 +237,15 @@ function EmptyState({
       alignItems="center"
       justifyContent="center"
       spacing={1}
-      sx={{
-        minHeight: 240,
-        height: "100%",
-        px: 2,
-        textAlign: "center",
-      }}
+      sx={{ minHeight: 240, height: "100%", px: 2, textAlign: "center" }}
     >
       <Typography sx={{ fontWeight: 800, fontSize: 16 }}>
-        No hay clínicas para mostrar
+        No hay profesionales para mostrar
       </Typography>
       <Typography color="text.secondary">
         {hasFilters
           ? "Ajusta la búsqueda o los filtros para intentar de nuevo."
-          : "Crea una nueva clínica para comenzar."}
+          : "Crea un nuevo profesional para comenzar."}
       </Typography>
     </Stack>
   );
@@ -191,11 +271,10 @@ function ColumnSettingsDialog({
   onReset,
 }: ColumnSettingsDialogProps) {
   const columns = [
-    { field: "nombre", label: "Nombre", required: true },
-    { field: "razon_social", label: "Razón social", required: false },
-    { field: "rfc", label: "RFC", required: false },
-    { field: "telefono", label: "Teléfono", required: false },
-    { field: "correo_contacto", label: "Correo contacto", required: false },
+    { field: "profesional", label: "Profesional", required: true },
+    { field: "especialidad", label: "Especialidad", required: false },
+    { field: "organizacion", label: "Organización", required: false },
+    { field: "clinicaNombre", label: "Clínica", required: false },
     { field: "estado", label: "Estado", required: false },
   ];
 
@@ -252,28 +331,31 @@ function ColumnSettingsDialog({
   );
 }
 
-export default function ClinicasPage() {
+export default function ProfesionalesPage() {
   const theme = useTheme();
   const { user } = useAuth();
-
   const isSuperAdmin = user?.role === "super_admin";
-  const canCreate = isSuperAdmin;
-  const canEdit = isSuperAdmin || user?.role === "clinic_admin";
+  const canWrite = user?.role === "super_admin" || user?.role === "clinic_admin";
+  const lockedClinicId = !isSuperAdmin ? (user?.clinicId ?? null) : null;
 
-  const [rows, setRows] = useState<ClinicRow[]>([]);
+  const [rows, setRows] = useState<ProfessionalRow[]>([]);
   const [totalRows, setTotalRows] = useState(0);
+  const [clinics, setClinics] = useState<ClinicOption[]>([]);
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"todas" | ClinicStatus>("todas");
+  const [statusFilter, setStatusFilter] = useState<"todos" | ProfessionalStatus>("todos");
+  const [clinicFilter, setClinicFilter] = useState<"todas" | number>(
+    lockedClinicId ? lockedClinicId : "todas"
+  );
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<"create" | "edit">("create");
-  const [editingClinic, setEditingClinic] = useState<ClinicRow | null>(null);
+  const [editingProfessional, setEditingProfessional] = useState<ProfessionalRow | null>(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
 
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [selectedClinic, setSelectedClinic] = useState<ClinicRow | null>(null);
+  const [selectedProfessional, setSelectedProfessional] = useState<ProfessionalRow | null>(null);
   const [statusSubmitting, setStatusSubmitting] = useState(false);
 
   const [columnsDialogOpen, setColumnsDialogOpen] = useState(false);
@@ -286,7 +368,7 @@ export default function ClinicasPage() {
   });
 
   const [sortModel, setSortModel] = useState<GridSortModel>([
-    { field: "nombre", sort: "asc" },
+    { field: "profesional", sort: "asc" },
   ]);
 
   const [loading, setLoading] = useState(false);
@@ -307,51 +389,73 @@ export default function ClinicasPage() {
 
   useEffect(() => {
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
-  }, [debouncedSearch, statusFilter]);
+  }, [debouncedSearch, statusFilter, clinicFilter]);
 
-  const showToast = useCallback(
-    (severity: ToastState["severity"], message: string) => {
-      setToast({
-        open: true,
-        severity,
-        message,
-      });
-    },
-    []
-  );
+  const showToast = useCallback((severity: ToastState["severity"], message: string) => {
+    setToast({
+      open: true,
+      severity,
+      message,
+    });
+  }, []);
 
   const loadClinics = useCallback(async () => {
+    if (lockedClinicId) {
+      return;
+    }
+
+    try {
+      const { data } = await http.get<ClinicsListResponse>("/clinicas", {
+        params: {
+          page: 1,
+          pageSize: 100,
+          estado: "activa",
+          sortField: "nombre",
+          sortDirection: "asc",
+        },
+      });
+
+      setClinics(
+        (data.items ?? []).map((clinic) => ({
+          id: clinic.id,
+          nombre: clinic.nombre,
+          estado: clinic.estado,
+        }))
+      );
+    } catch (error) {
+      setClinics([]);
+      showToast("error", getErrorMessage(error, "No se pudieron cargar las clínicas."));
+    }
+  }, [lockedClinicId, showToast]);
+
+  const loadProfessionals = useCallback(async () => {
     try {
       setLoading(true);
 
-      const activeSort = sortModel[0];
-      const sortField =
-        activeSort?.field && activeSort.field !== "rowActions"
-          ? activeSort.field
-          : "nombre";
-      const sortDirection = activeSort?.sort ?? "asc";
-
-      const { data } = await http.get<ClinicsListResponse>("/clinicas", {
+      const { data } = await http.get<ProfessionalsListResponse>("/profesionales", {
         params: {
           page: paginationModel.page + 1,
           pageSize: paginationModel.pageSize,
           q: debouncedSearch || undefined,
-          estado: statusFilter === "todas" ? undefined : statusFilter,
-          sortField,
-          sortDirection,
+          estado: statusFilter === "todos" ? undefined : statusFilter,
+          clinicaId: clinicFilter === "todas" ? undefined : clinicFilter,
         },
       });
 
-      setRows((data.items ?? []).map(normalizeClinic));
+      const mapped = (data.items ?? []).map(normalizeProfessional);
+      const sorted = sortRows(mapped, sortModel);
+
+      setRows(sorted);
       setTotalRows(data.total ?? 0);
     } catch (error) {
       setRows([]);
       setTotalRows(0);
-      showToast("error", getErrorMessage(error, "No se pudieron cargar las clínicas."));
+      showToast("error", getErrorMessage(error, "No se pudieron cargar los profesionales."));
     } finally {
       setLoading(false);
     }
   }, [
+    clinicFilter,
     debouncedSearch,
     paginationModel.page,
     paginationModel.pageSize,
@@ -364,95 +468,111 @@ export default function ClinicasPage() {
     void loadClinics();
   }, [loadClinics]);
 
+  useEffect(() => {
+    void loadProfessionals();
+  }, [loadProfessionals]);
+
   const openCreate = () => {
     setDialogMode("create");
-    setEditingClinic(null);
+    setEditingProfessional(null);
     setDialogOpen(true);
   };
 
-  const openEdit = (row: ClinicRow) => {
+  const openEdit = (row: ProfessionalRow) => {
     setDialogMode("edit");
-    setEditingClinic(row);
+    setEditingProfessional({
+      ...row,
+      password: "",
+    });
     setDialogOpen(true);
   };
 
-  const handleSave = async (values: ClinicFormValues) => {
+  const handleSave = async (
+    values: ProfessionalFormValues,
+    photoFile?: File | null
+  ) => {
     try {
       setFormSubmitting(true);
 
-      const payload = {
-        nombre: values.nombre,
-        razon_social: values.razon_social,
-        rfc: values.rfc,
-        telefono: values.telefono,
-        correo_contacto: values.correo_contacto,
-        direccion: values.direccion,
-        estado: values.estado,
-      };
+      const formData = new FormData();
+      formData.append("correo", values.correo);
+      if (values.password) formData.append("password", values.password);
+      formData.append("estado", values.estado);
 
-      if (dialogMode === "create") {
-        await http.post("/clinicas", payload);
-        showToast("success", "La clínica se agregó correctamente.");
-        setPaginationModel((prev) => ({ ...prev, page: 0 }));
-      } else if (editingClinic) {
-        await http.put(`/clinicas/${editingClinic.id}`, payload);
-        showToast("success", "La clínica se actualizó correctamente.");
+      const effectiveClinicId = lockedClinicId ?? values.clinicaId;
+      if (effectiveClinicId !== null) {
+        formData.append("clinicaId", String(effectiveClinicId));
       }
 
+      formData.append("nombre", values.nombre);
+      formData.append("ap_paterno", values.ap_paterno);
+      formData.append("ap_materno", values.ap_materno || "");
+      formData.append("telefono", values.telefono);
+      formData.append("especialidad", values.especialidad);
+      formData.append("organizacion", values.organizacion);
+      formData.append("foto_url", values.foto_url || "");
+      formData.append("foto_public_id", values.foto_public_id || "");
+
+      if (photoFile) {
+        formData.append("foto", photoFile);
+      }
+
+    if (dialogMode === "create") {
+    await http.post("/profesionales", formData);
+    showToast("success", "El profesional se agregó correctamente.");
+    setPaginationModel((prev) => ({ ...prev, page: 0 }));
+    } else if (editingProfessional) {
+    await http.put(`/profesionales/${editingProfessional.id}`, formData);
+    showToast("success", "El profesional se actualizó correctamente.");
+    }
+
       setDialogOpen(false);
-      setEditingClinic(null);
-      await loadClinics();
+      setEditingProfessional(null);
+      await loadProfessionals();
     } catch (error) {
-      showToast("error", getErrorMessage(error, "No se pudo guardar la clínica."));
+      showToast("error", getErrorMessage(error, "No se pudo guardar el profesional."));
     } finally {
       setFormSubmitting(false);
     }
   };
 
-  const askToggleStatus = (row: ClinicRow) => {
-    setSelectedClinic(row);
+  const askToggleStatus = (row: ProfessionalRow) => {
+    setSelectedProfessional(row);
     setConfirmOpen(true);
   };
 
   const confirmToggleStatus = async () => {
-    if (!selectedClinic) return;
+    if (!selectedProfessional) return;
 
     try {
       setStatusSubmitting(true);
 
-      const nextState: ClinicStatus =
-        selectedClinic.estado === "activa" ? "suspendida" : "activa";
+      const nextState: ProfessionalStatus =
+        selectedProfessional.estado === "activo" ? "suspendido" : "activo";
 
-      if (nextState === "suspendida") {
-        await http.delete(`/clinicas/${selectedClinic.id}`);
-      } else {
-        await http.put(`/clinicas/${selectedClinic.id}`, {
-          estado: "activa",
-        });
-      }
+      await http.patch(`/profesionales/${selectedProfessional.id}/status`, {
+        estado: nextState,
+      });
 
       showToast(
         "success",
-        nextState === "suspendida"
-          ? "La clínica fue suspendida correctamente."
-          : "La clínica fue reactivada correctamente."
+        nextState === "suspendido"
+          ? "El profesional fue suspendido correctamente."
+          : "El profesional fue reactivado correctamente."
       );
 
       setConfirmOpen(false);
-      setSelectedClinic(null);
-      await loadClinics();
+      setSelectedProfessional(null);
+      await loadProfessionals();
     } catch (error) {
-      showToast(
-        "error",
-        getErrorMessage(error, "No se pudo actualizar el estado de la clínica.")
-      );
+      showToast("error", getErrorMessage(error, "No se pudo actualizar el estado."));
     } finally {
       setStatusSubmitting(false);
     }
   };
 
   const toggleColumn = (field: string) => {
-    if (field === "nombre") return;
+    if (field === "profesional") return;
 
     setColumnVisibilityModel((prev) => {
       const nextValue = !(prev[field] !== false);
@@ -463,11 +583,10 @@ export default function ClinicasPage() {
       };
 
       const protectedFields = [
-        "nombre",
-        "razon_social",
-        "rfc",
-        "telefono",
-        "correo_contacto",
+        "profesional",
+        "especialidad",
+        "organizacion",
+        "clinicaNombre",
         "estado",
       ];
 
@@ -493,99 +612,100 @@ export default function ClinicasPage() {
     return <SwapVert sx={{ fontSize: 16, opacity: 0.55 }} />;
   };
 
-  const columns = useMemo<GridColDef<ClinicRow>[]>(
+  const columns = useMemo<GridColDef<ProfessionalRow>[]>(
     () => [
       {
-        field: "nombre",
-        headerName: "Nombre",
-        flex: 1.1,
-        minWidth: 240,
+        field: "profesional",
+        headerName: "Profesional",
+        flex: 1.25,
+        minWidth: 290,
         sortable: true,
         disableColumnMenu: true,
         renderHeader: () => (
           <Stack direction="row" spacing={0.5} alignItems="center">
-            <span>Nombre</span>
-            {renderSortIcon("nombre")}
+            <span>Profesional</span>
+            {renderSortIcon("profesional")}
           </Stack>
         ),
-        renderCell: (params: GridRenderCellParams<ClinicRow, string>) => (
-          <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
-            <Avatar
-              sx={{
-                width: 30,
-                height: 30,
-                fontSize: 13,
-                fontWeight: 700,
-                bgcolor:
-                  theme.palette.mode === "dark"
-                    ? "rgba(42,157,143,0.18)"
-                    : "rgba(42,157,143,0.14)",
-                color: "primary.main",
-              }}
-            >
-              {params.row.nombre?.charAt(0)?.toUpperCase() ?? "C"}
-            </Avatar>
+        renderCell: (params: GridRenderCellParams<ProfessionalRow>) => {
+          const fullName = collapseSpaces(
+            `${params.row.nombre} ${params.row.ap_paterno} ${params.row.ap_materno}`
+          );
 
-            <Typography sx={{ fontWeight: 700 }} noWrap>
-              {params.row.nombre}
-            </Typography>
-          </Stack>
-        ),
+          return (
+            <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
+              <Avatar
+                src={params.row.foto_url || undefined}
+                sx={{
+                  width: 34,
+                  height: 34,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  bgcolor:
+                    theme.palette.mode === "dark"
+                      ? "rgba(42,157,143,0.18)"
+                      : "rgba(42,157,143,0.14)",
+                  color: "primary.main",
+                }}
+              >
+                {params.row.nombre?.charAt(0)?.toUpperCase() ?? "P"}
+              </Avatar>
+
+              <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ fontWeight: 700 }} noWrap>
+                  {fullName}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" noWrap>
+                  {params.row.correo}
+                </Typography>
+              </Box>
+            </Stack>
+          );
+        },
       },
       {
-        field: "razon_social",
-        headerName: "Razón social",
-        flex: 1.35,
-        minWidth: 260,
+        field: "especialidad",
+        headerName: "Especialidad",
+        flex: 0.95,
+        minWidth: 180,
         sortable: true,
         disableColumnMenu: true,
         renderHeader: () => (
           <Stack direction="row" spacing={0.5} alignItems="center">
-            <span>Razón social</span>
-            {renderSortIcon("razon_social")}
+            <span>Especialidad</span>
+            {renderSortIcon("especialidad")}
           </Stack>
         ),
       },
       {
-        field: "rfc",
-        headerName: "RFC",
-        flex: 0.7,
-        minWidth: 150,
+        field: "organizacion",
+        headerName: "Organización",
+        flex: 1,
+        minWidth: 180,
         sortable: true,
         disableColumnMenu: true,
         renderHeader: () => (
           <Stack direction="row" spacing={0.5} alignItems="center">
-            <span>RFC</span>
-            {renderSortIcon("rfc")}
+            <span>Organización</span>
+            {renderSortIcon("organizacion")}
           </Stack>
         ),
       },
       {
-        field: "telefono",
-        headerName: "Teléfono",
-        flex: 0.8,
-        minWidth: 150,
+        field: "clinicaNombre",
+        headerName: "Clínica",
+        flex: 1,
+        minWidth: 190,
         sortable: true,
         disableColumnMenu: true,
         renderHeader: () => (
           <Stack direction="row" spacing={0.5} alignItems="center">
-            <span>Teléfono</span>
-            {renderSortIcon("telefono")}
+            <span>Clínica</span>
+            {renderSortIcon("clinicaNombre")}
           </Stack>
         ),
-      },
-      {
-        field: "correo_contacto",
-        headerName: "Correo contacto",
-        flex: 1.15,
-        minWidth: 220,
-        sortable: true,
-        disableColumnMenu: true,
-        renderHeader: () => (
-          <Stack direction="row" spacing={0.5} alignItems="center">
-            <span>Correo contacto</span>
-            {renderSortIcon("correo_contacto")}
-          </Stack>
+        renderCell: (params: GridRenderCellParams<ProfessionalRow, string | null>) => (
+          <Typography noWrap>{params.row.clinicaNombre ?? "—"}</Typography>
         ),
       },
       {
@@ -601,21 +721,27 @@ export default function ClinicasPage() {
             {renderSortIcon("estado")}
           </Stack>
         ),
-        renderCell: (params: GridRenderCellParams<ClinicRow, ClinicStatus>) => {
-          const active = params.row.estado === "activa";
+        renderCell: (params: GridRenderCellParams<ProfessionalRow, ProfessionalStatus>) => {
+          const styles = statusColor(params.row.estado);
 
           return (
-            <Chip
-              label={active ? "Activa" : "Suspendida"}
-              size="small"
+            <Alert
+              icon={false}
+              severity="success"
               sx={{
-                fontWeight: 700,
-                color: active ? "#0F766E" : "#B45309",
-                backgroundColor: active
-                  ? alpha("#2A9D8F", 0.14)
-                  : alpha("#F59E0B", 0.18),
+                py: 0,
+                px: 1.2,
+                minWidth: 0,
+                borderRadius: 999,
+                fontSize: 12,
+                alignItems: "center",
+                "& .MuiAlert-message": { p: 0, fontWeight: 700 },
+                color: styles.color,
+                backgroundColor: styles.backgroundColor,
               }}
-            />
+            >
+              {styles.label}
+            </Alert>
           );
         },
       },
@@ -629,7 +755,7 @@ export default function ClinicasPage() {
         minWidth: 126,
         align: "center",
         headerAlign: "center",
-        renderCell: (params: GridRenderCellParams<ClinicRow>) => (
+        renderCell: (params: GridRenderCellParams<ProfessionalRow>) => (
           <Box
             className="row-actions"
             sx={{
@@ -644,7 +770,7 @@ export default function ClinicasPage() {
             }}
           >
             <Stack direction="row" spacing={0.25} alignItems="center" justifyContent="center">
-              {canEdit && (
+              {canWrite && (
                 <>
                   <Tooltip title="Editar">
                     <IconButton size="small" onClick={() => openEdit(params.row)}>
@@ -652,9 +778,9 @@ export default function ClinicasPage() {
                     </IconButton>
                   </Tooltip>
 
-                  <Tooltip title={params.row.estado === "activa" ? "Suspender" : "Reactivar"}>
+                  <Tooltip title={params.row.estado === "activo" ? "Suspender" : "Reactivar"}>
                     <IconButton size="small" onClick={() => askToggleStatus(params.row)}>
-                      {params.row.estado === "activa" ? (
+                      {params.row.estado === "activo" ? (
                         <PauseCircleOutline fontSize="small" />
                       ) : (
                         <PlayCircleOutline fontSize="small" />
@@ -668,17 +794,20 @@ export default function ClinicasPage() {
         ),
       },
     ],
-    [sortModel, theme.palette.mode, canEdit]
+    [sortModel, theme.palette.mode, canWrite]
   );
 
-  const hasFilters = Boolean(debouncedSearch) || statusFilter !== "todas";
+  const hasFilters =
+    Boolean(debouncedSearch) ||
+    statusFilter !== "todos" ||
+    clinicFilter !== "todas";
 
   return (
     <AdminLayout
-      title="Clínicas"
-      subtitle="Gestión de clínicas registradas"
+      title="Profesionales"
+      subtitle="Gestión de profesionales de la clínica"
       actions={
-        canCreate ? (
+        canWrite ? (
           <Button
             variant="contained"
             startIcon={<Add />}
@@ -691,7 +820,7 @@ export default function ClinicasPage() {
               boxShadow: "none",
             }}
           >
-            Nueva clínica
+            Nuevo profesional
           </Button>
         ) : undefined
       }
@@ -712,13 +841,16 @@ export default function ClinicasPage() {
             borderBottom: "1px solid",
             borderColor: "divider",
             display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "1fr 180px 48px" },
+            gridTemplateColumns: {
+              xs: "1fr",
+              xl: lockedClinicId ? "1fr 180px 48px" : "1fr 180px 220px 48px",
+            },
             gap: 1.5,
             alignItems: "center",
           }}
         >
           <TextField
-            placeholder="Buscar por nombre, razón social, RFC, correo o teléfono"
+            placeholder="Buscar por nombre, correo, especialidad u organización"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             fullWidth
@@ -736,12 +868,32 @@ export default function ClinicasPage() {
             fullWidth
             label="Estado"
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as "todas" | ClinicStatus)}
+            onChange={(e) => setStatusFilter(e.target.value as "todos" | ProfessionalStatus)}
           >
-            <MenuItem value="todas">Todas</MenuItem>
-            <MenuItem value="activa">Activas</MenuItem>
-            <MenuItem value="suspendida">Suspendidas</MenuItem>
+            <MenuItem value="todos">Todos</MenuItem>
+            <MenuItem value="activo">Activo</MenuItem>
+            <MenuItem value="pendiente">Pendiente</MenuItem>
+            <MenuItem value="suspendido">Suspendido</MenuItem>
           </TextField>
+
+          {!lockedClinicId && (
+            <TextField
+              select
+              fullWidth
+              label="Clínica"
+              value={clinicFilter}
+              onChange={(e) =>
+                setClinicFilter(e.target.value === "todas" ? "todas" : Number(e.target.value))
+              }
+            >
+              <MenuItem value="todas">Todas</MenuItem>
+              {clinics.map((clinic) => (
+                <MenuItem key={clinic.id} value={clinic.id}>
+                  {clinic.nombre}
+                </MenuItem>
+              ))}
+            </TextField>
+          )}
 
           <Tooltip title="Configurar columnas">
             <IconButton
@@ -774,14 +926,14 @@ export default function ClinicasPage() {
             sortModel={sortModel}
             onSortModelChange={(model) => {
               if (!model.length) {
-                setSortModel([{ field: "nombre", sort: "asc" }]);
+                setSortModel([{ field: "profesional", sort: "asc" }]);
                 return;
               }
 
               const next = model[0];
 
               if (!next || next.field === "rowActions") {
-                setSortModel([{ field: "nombre", sort: "asc" }]);
+                setSortModel([{ field: "profesional", sort: "asc" }]);
                 return;
               }
 
@@ -868,37 +1020,51 @@ export default function ClinicasPage() {
         </Box>
       </Paper>
 
-      <ClinicFormDialog
+      <ProfessionalFormDialog
         open={dialogOpen}
         mode={dialogMode}
-        initialData={editingClinic}
-        existingClinics={rows}
+        initialData={editingProfessional}
+        existingProfessionals={rows}
+        clinics={
+          lockedClinicId
+            ? [
+                {
+                  id: lockedClinicId,
+                  nombre:
+                    rows.find((row) => row.clinicaId === lockedClinicId)?.clinicaNombre ??
+                    "Mi clínica",
+                },
+              ]
+            : clinics
+        }
+        lockClinicId={lockedClinicId}
         submitting={formSubmitting}
         onClose={() => {
           if (formSubmitting) return;
           setDialogOpen(false);
-          setEditingClinic(null);
+          setEditingProfessional(null);
         }}
         onSubmit={handleSave}
       />
 
-      <ConfirmActionDialog
+      <ConfirmProfessionalActionDialog
         open={confirmOpen}
         title={
-          selectedClinic?.estado === "activa"
-            ? "Suspender clínica"
-            : "Reactivar clínica"
+          selectedProfessional?.estado === "activo"
+            ? "Suspender profesional"
+            : "Reactivar profesional"
         }
         description={
-          selectedClinic?.estado === "activa"
-            ? "Esta acción deshabilitará su operación administrativa hasta reactivarla."
-            : "La clínica volverá a estar disponible para operación administrativa."
+          selectedProfessional?.estado === "activo"
+            ? "Esta acción impedirá temporalmente el acceso del profesional al sistema."
+            : "El profesional volverá a tener acceso al sistema."
         }
-        confirmText={selectedClinic?.estado === "activa" ? "Suspender" : "Reactivar"}
+        confirmText={selectedProfessional?.estado === "activo" ? "Suspender" : "Reactivar"}
+        loading={statusSubmitting}
         onClose={() => {
           if (statusSubmitting) return;
           setConfirmOpen(false);
-          setSelectedClinic(null);
+          setSelectedProfessional(null);
         }}
         onConfirm={confirmToggleStatus}
       />

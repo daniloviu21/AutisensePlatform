@@ -4,27 +4,58 @@ import helmet from "helmet";
 import morgan from "morgan";
 import dotenv from "dotenv";
 
-import { authRouter } from "./modules/auth/auth.routes";
+import { authRouter, purgeExpiredRefreshTokens, purgeExpiredMfaChallenges } from "./modules/auth/auth.routes";
+import { meRouter } from "./modules/auth/me.routes";
 import { clinicasRouter } from "./modules/clinicas/clinicas.routes";
 import { usuariosRouter } from "./modules/usuarios/usuarios.routes";
+import { profesionalesRouter } from "./modules/profesionales/profesionales.routes";
+import { pacientesRouter } from "./modules/pacientes/pacientes.routes";
+import { tutoresRouter } from "./modules/tutores/tutores.routes";
 
 dotenv.config();
 
 const app = express();
 
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 app.use(helmet());
 app.use(cors({ origin: process.env.CORS_ORIGIN ?? "http://localhost:5173" }));
-app.use(morgan("dev"));
+app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
+
 app.use("/auth", authRouter);
+app.use("/me", meRouter);
 app.use("/clinicas", clinicasRouter);
 app.use("/usuarios", usuariosRouter);
+app.use("/profesionales", profesionalesRouter);
+app.use("/pacientes", pacientesRouter);
+app.use("/tutores", tutoresRouter);
 
 app.use((_req, res) => res.status(404).json({ message: "Not found" }));
 
 const port = Number(process.env.PORT ?? 4000);
-app.listen(port, () => console.log(`API running on http://localhost:${port}`));
+app.use((error: any, _req: any, res: any, _next: any) => {
+  if (error?.message?.includes("Formato de imagen no permitido")) {
+    return res.status(400).json({ message: error.message });
+  }
+
+  if (error?.code === "LIMIT_FILE_SIZE") {
+    return res.status(400).json({ message: "La imagen no debe exceder 5 MB." });
+  }
+
+  console.error("Unhandled error:", error);
+  return res.status(500).json({ message: "Error interno del servidor" });
+});
+app.listen(port, () => {
+  console.log(`API running on http://localhost:${port}`);
+
+  // Limpieza inicial + periódica cada 6 h
+  void purgeExpiredRefreshTokens();
+  void purgeExpiredMfaChallenges();
+  setInterval(() => {
+    void purgeExpiredRefreshTokens();
+    void purgeExpiredMfaChallenges();
+  }, 6 * 60 * 60 * 1000);
+});

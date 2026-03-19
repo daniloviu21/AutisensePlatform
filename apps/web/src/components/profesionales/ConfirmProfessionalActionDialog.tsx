@@ -8,7 +8,7 @@ import {
   Typography,
 } from "@mui/material";
 
-type ConfirmUserActionDialogProps = {
+type ConfirmProfessionalActionDialogProps = {
   open: boolean;
   title: string;
   description: string;
@@ -18,7 +18,7 @@ type ConfirmUserActionDialogProps = {
   onConfirm: () => void;
 };
 
-export default function ConfirmUserActionDialog({
+export default function ConfirmProfessionalActionDialog({
   open,
   title,
   description,
@@ -26,7 +26,7 @@ export default function ConfirmUserActionDialog({
   loading = false,
   onClose,
   onConfirm,
-}: ConfirmUserActionDialogProps) {
+}: ConfirmProfessionalActionDialogProps) {
   return (
     <Dialog
       open={open}

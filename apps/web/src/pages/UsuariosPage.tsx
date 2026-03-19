@@ -6,6 +6,7 @@ import {
   PauseCircleOutline,
   PlayCircleOutline,
   Search,
+  SecurityOutlined,
   SettingsOutlined,
   SwapVert,
 } from "@mui/icons-material";
@@ -17,6 +18,7 @@ import {
   Button,
   Checkbox,
   Chip,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -45,7 +47,9 @@ import type {
   GridSortModel,
 } from "@mui/x-data-grid";
 import { esES } from "@mui/x-data-grid/locales";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { http } from "../api/http";
 import AdminLayout from "../layout/AdminLayout";
 import UserFormDialog from "../components/usuarios/UserFormDialog";
 import type {
@@ -58,7 +62,47 @@ import ConfirmUserActionDialog from "../components/usuarios/ConfirmUserActionDia
 
 type UserRow = UserFormValues & {
   id: number;
+  mfaEnabled: boolean;
   clinicaNombre: string | null;
+};
+
+type ApiUser = {
+  id: number;
+  correo: string;
+  estado: UserStatus;
+  mfaEnabled: boolean;
+  id_clinica: number | null;
+  id_rol: number;
+  rol: {
+    id: number;
+    rol: UserRole;
+    descripcion: string | null;
+  } | null;
+  clinica: {
+    id: number;
+    nombre: string;
+    estado: string;
+  } | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+type UsersListResponse = {
+  page: number;
+  pageSize: number;
+  total: number;
+  items: ApiUser[];
+};
+
+type ClinicsListResponse = {
+  page: number;
+  pageSize: number;
+  total: number;
+  items: Array<{
+    id: number;
+    nombre: string;
+    estado: string;
+  }>;
 };
 
 type ToastState = {
@@ -66,61 +110,6 @@ type ToastState = {
   severity: "success" | "error" | "info" | "warning";
   message: string;
 };
-
-const clinicsMock: ClinicOption[] = [
-  { id: 1, nombre: "Clínica San Ángel", estado: "activa" },
-  { id: 2, nombre: "Centro Infantil Nova", estado: "activa" },
-  { id: 3, nombre: "Unidad Pediátrica del Golfo", estado: "suspendida" },
-  { id: 4, nombre: "Clínica Horizonte", estado: "activa" },
-];
-
-const initialUsers: UserRow[] = [
-  {
-    id: 1,
-    correo: "admin@autisense.com",
-    password: "",
-    role: "super_admin",
-    estado: "activo",
-    clinicaId: null,
-    clinicaNombre: null,
-  },
-  {
-    id: 2,
-    correo: "admin@sanangel.mx",
-    password: "",
-    role: "clinic_admin",
-    estado: "activo",
-    clinicaId: 1,
-    clinicaNombre: "Clínica San Ángel",
-  },
-  {
-    id: 3,
-    correo: "terapia@sanangel.mx",
-    password: "",
-    role: "profesional",
-    estado: "activo",
-    clinicaId: 1,
-    clinicaNombre: "Clínica San Ángel",
-  },
-  {
-    id: 4,
-    correo: "tutor1@nova.mx",
-    password: "",
-    role: "tutor",
-    estado: "pendiente",
-    clinicaId: 2,
-    clinicaNombre: "Centro Infantil Nova",
-  },
-  {
-    id: 5,
-    correo: "admin@golfo.mx",
-    password: "",
-    role: "clinic_admin",
-    estado: "suspendido",
-    clinicaId: 3,
-    clinicaNombre: "Unidad Pediátrica del Golfo",
-  },
-];
 
 const PAGE_SIZE = 10;
 
@@ -137,7 +126,87 @@ const initialVisibilityModel: GridColumnVisibilityModel = {
   rowActions: true,
 };
 
-function EmptyState() {
+function roleLabel(role: UserRole) {
+  switch (role) {
+    case "super_admin":
+      return "Super admin";
+    case "clinic_admin":
+      return "Admin de clínica";
+    case "profesional":
+      return "Profesional";
+    case "tutor":
+      return "Tutor";
+    default:
+      return role;
+  }
+}
+
+function statusColor(status: UserStatus) {
+  if (status === "activo") {
+    return {
+      color: "#0F766E",
+      backgroundColor: alpha("#2A9D8F", 0.14),
+      label: "Activo",
+    };
+  }
+
+  if (status === "pendiente") {
+    return {
+      color: "#9A3412",
+      backgroundColor: alpha("#F59E0B", 0.18),
+      label: "Pendiente",
+    };
+  }
+
+  return {
+    color: "#B91C1C",
+    backgroundColor: alpha("#EF4444", 0.14),
+    label: "Suspendido",
+  };
+}
+
+function normalizeUser(apiUser: ApiUser): UserRow {
+  return {
+    id: apiUser.id,
+    correo: apiUser.correo ?? "",
+    password: "",
+    role: apiUser.rol?.rol ?? "clinic_admin",
+    estado: apiUser.estado ?? "activo",
+    mfaEnabled: apiUser.mfaEnabled ?? false,
+    clinicaId: apiUser.id_clinica ?? null,
+    clinicaNombre: apiUser.clinica?.nombre ?? null,
+  };
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  const message =
+    (error as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+    (error as { message?: string })?.message;
+
+  return typeof message === "string" && message.trim() ? message : fallback;
+}
+
+function EmptyState({
+  loading,
+  hasFilters,
+}: {
+  loading: boolean;
+  hasFilters: boolean;
+}) {
+  if (loading) {
+    return (
+      <Stack
+        alignItems="center"
+        justifyContent="center"
+        spacing={1.5}
+        sx={{ minHeight: 240, height: "100%", px: 2, textAlign: "center" }}
+      >
+        <CircularProgress size={28} />
+        <Typography color="text.secondary">Cargando usuarios...</Typography>
+      </Stack>
+    );
+  }
+
   return (
     <Stack
       alignItems="center"
@@ -154,7 +223,9 @@ function EmptyState() {
         No hay usuarios para mostrar
       </Typography>
       <Typography color="text.secondary">
-        Ajusta el filtro o crea un nuevo usuario.
+        {hasFilters
+          ? "Ajusta la búsqueda o los filtros para intentar de nuevo."
+          : "Crea un nuevo usuario para comenzar."}
       </Typography>
     </Stack>
   );
@@ -207,8 +278,7 @@ function ColumnSettingsDialog({
           <FormGroup>
             {columns.map((column) => {
               const checked = model[column.field] !== false;
-              const disableUncheck =
-                column.required || (checked && visibleCount === 1);
+              const disableUncheck = column.required || (checked && visibleCount === 1);
 
               return (
                 <FormControlLabel
@@ -220,11 +290,7 @@ function ColumnSettingsDialog({
                       disabled={disableUncheck}
                     />
                   }
-                  label={
-                    column.required
-                      ? `${column.label}`
-                      : column.label
-                  }
+                  label={column.label}
                 />
               );
             })}
@@ -244,68 +310,15 @@ function ColumnSettingsDialog({
   );
 }
 
-function compareValues(a: unknown, b: unknown) {
-  const left = String(a ?? "").toLowerCase().trim();
-  const right = String(b ?? "").toLowerCase().trim();
-  return left.localeCompare(right, "es", { sensitivity: "base", numeric: true });
-}
-
-function sortRows(rows: UserRow[], sortModel: GridSortModel) {
-  if (!sortModel.length) return rows;
-
-  const [{ field, sort }] = sortModel;
-  if (!field || !sort) return rows;
-
-  return [...rows].sort((a, b) => {
-    const result = compareValues(a[field as keyof UserRow], b[field as keyof UserRow]);
-    return sort === "asc" ? result : -result;
-  });
-}
-
-function roleLabel(role: UserRole) {
-  switch (role) {
-    case "super_admin":
-      return "Super admin";
-    case "clinic_admin":
-      return "Admin de clínica";
-    case "profesional":
-      return "Profesional";
-    case "tutor":
-      return "Tutor";
-    default:
-      return role;
-  }
-}
-
-function statusColor(status: UserStatus) {
-  if (status === "activo") {
-    return {
-      color: "#0F766E",
-      backgroundColor: alpha("#2A9D8F", 0.14),
-      label: "Activo",
-    };
-  }
-
-  if (status === "pendiente") {
-    return {
-      color: "#9A3412",
-      backgroundColor: alpha("#F59E0B", 0.18),
-      label: "Pendiente",
-    };
-  }
-
-  return {
-    color: "#B91C1C",
-    backgroundColor: alpha("#EF4444", 0.14),
-    label: "Suspendido",
-  };
-}
-
 export default function UsuariosPage() {
   const theme = useTheme();
 
-  const [rows, setRows] = useState<UserRow[]>(initialUsers);
+  const [rows, setRows] = useState<UserRow[]>([]);
+  const [totalRows, setTotalRows] = useState(0);
+  const [clinics, setClinics] = useState<ClinicOption[]>([]);
+
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<"todos" | UserRole>("todos");
   const [statusFilter, setStatusFilter] = useState<"todos" | UserStatus>("todos");
   const [clinicFilter, setClinicFilter] = useState<"todas" | number>("todas");
@@ -317,6 +330,7 @@ export default function UsuariosPage() {
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
+  const [statusSubmitting, setStatusSubmitting] = useState(false);
 
   const [columnsDialogOpen, setColumnsDialogOpen] = useState(false);
   const [columnVisibilityModel, setColumnVisibilityModel] =
@@ -327,7 +341,11 @@ export default function UsuariosPage() {
     pageSize: PAGE_SIZE,
   });
 
-  const [sortModel, setSortModel] = useState<GridSortModel>([]);
+  const [sortModel, setSortModel] = useState<GridSortModel>([
+    { field: "correo", sort: "asc" },
+  ]);
+
+  const [loading, setLoading] = useState(false);
 
   const [toast, setToast] = useState<ToastState>({
     open: false,
@@ -335,57 +353,111 @@ export default function UsuariosPage() {
     message: "",
   });
 
-  const filteredRows = useMemo(() => {
-    const q = search.trim().toLowerCase();
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 350);
 
-    return rows.filter((row) => {
-      const matchesSearch =
-        !q ||
-        row.correo.toLowerCase().includes(q) ||
-        roleLabel(row.role).toLowerCase().includes(q) ||
-        (row.clinicaNombre ?? "").toLowerCase().includes(q);
-
-      const matchesRole = roleFilter === "todos" ? true : row.role === roleFilter;
-      const matchesStatus = statusFilter === "todos" ? true : row.estado === statusFilter;
-      const matchesClinic =
-        clinicFilter === "todas" ? true : row.clinicaId === clinicFilter;
-
-      return matchesSearch && matchesRole && matchesStatus && matchesClinic;
-    });
-  }, [rows, search, roleFilter, statusFilter, clinicFilter]);
-
-  const sortedRows = useMemo(() => sortRows(filteredRows, sortModel), [filteredRows, sortModel]);
-
-  const totalRows = sortedRows.length;
-
-  const paginatedRows = useMemo(() => {
-    const start = paginationModel.page * PAGE_SIZE;
-    const end = start + PAGE_SIZE;
-    return sortedRows.slice(start, end);
-  }, [sortedRows, paginationModel.page]);
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
   useEffect(() => {
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
-  }, [search, roleFilter, statusFilter, clinicFilter, sortModel]);
+  }, [debouncedSearch, roleFilter, statusFilter, clinicFilter]);
 
-  useEffect(() => {
-    const maxPage = Math.max(0, Math.ceil(totalRows / PAGE_SIZE) - 1);
-
-    if (paginationModel.page > maxPage) {
-      setPaginationModel((prev) => ({
-        ...prev,
-        page: maxPage,
-      }));
-    }
-  }, [totalRows, paginationModel.page]);
-
-  const showToast = (severity: ToastState["severity"], message: string) => {
+  const showToast = useCallback((severity: ToastState["severity"], message: string) => {
     setToast({
       open: true,
       severity,
       message,
     });
-  };
+  }, []);
+
+  const loadClinics = useCallback(async () => {
+    try {
+      const { data } = await http.get<ClinicsListResponse>("/clinicas", {
+        params: {
+          page: 1,
+          pageSize: 100,
+          estado: "activa",
+          sortField: "nombre",
+          sortDirection: "asc",
+        },
+      });
+
+      setClinics(
+        (data.items ?? []).map((clinic) => ({
+          id: clinic.id,
+          nombre: clinic.nombre,
+          estado: clinic.estado,
+        }))
+      );
+    } catch (error) {
+      setClinics([]);
+      showToast("error", getErrorMessage(error, "No se pudieron cargar las clínicas."));
+    }
+  }, [showToast]);
+
+  const loadUsers = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      const { data } = await http.get<UsersListResponse>("/usuarios", {
+        params: {
+          page: paginationModel.page + 1,
+          pageSize: paginationModel.pageSize,
+          q: debouncedSearch || undefined,
+          role: roleFilter === "todos" ? undefined : roleFilter,
+          estado: statusFilter === "todos" ? undefined : statusFilter,
+          clinicaId: clinicFilter === "todas" ? undefined : clinicFilter,
+        },
+      });
+
+      let mapped = (data.items ?? []).map(normalizeUser);
+
+      const activeSort = sortModel[0];
+      if (activeSort?.field && activeSort.sort) {
+        const field = activeSort.field as keyof UserRow;
+        const direction = activeSort.sort;
+
+        mapped = [...mapped].sort((a, b) => {
+          const left = String(a[field] ?? "").toLowerCase().trim();
+          const right = String(b[field] ?? "").toLowerCase().trim();
+          const result = left.localeCompare(right, "es", {
+            sensitivity: "base",
+            numeric: true,
+          });
+          return direction === "asc" ? result : -result;
+        });
+      }
+
+      setRows(mapped);
+      setTotalRows(data.total ?? 0);
+    } catch (error) {
+      setRows([]);
+      setTotalRows(0);
+      showToast("error", getErrorMessage(error, "No se pudieron cargar los usuarios."));
+    } finally {
+      setLoading(false);
+    }
+  }, [
+    clinicFilter,
+    debouncedSearch,
+    paginationModel.page,
+    paginationModel.pageSize,
+    roleFilter,
+    showToast,
+    sortModel,
+    statusFilter,
+  ]);
+
+  useEffect(() => {
+    void loadClinics();
+  }, [loadClinics]);
+
+  useEffect(() => {
+    void loadUsers();
+  }, [loadUsers]);
 
   const openCreate = () => {
     setDialogMode("create");
@@ -406,41 +478,28 @@ export default function UsuariosPage() {
     try {
       setFormSubmitting(true);
 
-      const clinicName =
-        values.clinicaId == null
-          ? null
-          : clinicsMock.find((c) => c.id === values.clinicaId)?.nombre ?? null;
+      const payload = {
+        correo: values.correo,
+        password: values.password,
+        role: values.role,
+        estado: values.estado,
+        clinicaId: values.role === "super_admin" ? null : values.clinicaId,
+      };
 
       if (dialogMode === "create") {
-        const next: UserRow = {
-          ...values,
-          id: Date.now(),
-          clinicaNombre: clinicName,
-        };
-
-        setRows((prev) => [next, ...prev]);
+        await http.post("/usuarios", payload);
         showToast("success", "El usuario se agregó correctamente.");
+        setPaginationModel((prev) => ({ ...prev, page: 0 }));
       } else if (editingUser) {
-        setRows((prev) =>
-          prev.map((row) =>
-            row.id === editingUser.id
-              ? {
-                  ...row,
-                  ...values,
-                  id: editingUser.id,
-                  clinicaNombre: clinicName,
-                }
-              : row
-          )
-        );
+        await http.put(`/usuarios/${editingUser.id}`, payload);
         showToast("success", "El usuario se actualizó correctamente.");
       }
 
       setDialogOpen(false);
       setEditingUser(null);
-      setPaginationModel((prev) => ({ ...prev, page: 0 }));
-    } catch {
-      showToast("error", "No se pudo guardar el usuario.");
+      await loadUsers();
+    } catch (error) {
+      showToast("error", getErrorMessage(error, "No se pudo guardar el usuario."));
     } finally {
       setFormSubmitting(false);
     }
@@ -451,23 +510,18 @@ export default function UsuariosPage() {
     setConfirmOpen(true);
   };
 
-  const confirmToggleStatus = () => {
+  const confirmToggleStatus = async () => {
     if (!selectedUser) return;
 
     try {
+      setStatusSubmitting(true);
+
       const nextState: UserStatus =
         selectedUser.estado === "activo" ? "suspendido" : "activo";
 
-      setRows((prev) =>
-        prev.map((row) =>
-          row.id === selectedUser.id
-            ? {
-                ...row,
-                estado: nextState,
-              }
-            : row
-        )
-      );
+      await http.patch(`/usuarios/${selectedUser.id}/status`, {
+        estado: nextState,
+      });
 
       showToast(
         "success",
@@ -475,35 +529,62 @@ export default function UsuariosPage() {
           ? "El usuario fue suspendido correctamente."
           : "El usuario fue reactivado correctamente."
       );
-    } catch {
-      showToast("error", "No se pudo actualizar el estado del usuario.");
-    } finally {
+
       setConfirmOpen(false);
       setSelectedUser(null);
+      await loadUsers();
+    } catch (error) {
+      showToast(
+        "error",
+        getErrorMessage(error, "No se pudo actualizar el estado del usuario.")
+      );
+    } finally {
+      setStatusSubmitting(false);
     }
   };
 
-    const toggleColumn = (field: string) => {
-        if (field === "correo") return;
+  const toggleMfa = async (row: UserRow) => {
+    const next = !row.mfaEnabled;
+    // Actualización optimista en UI
+    setRows((prev) =>
+      prev.map((r) => (r.id === row.id ? { ...r, mfaEnabled: next } : r))
+    );
+    try {
+      await http.patch(`/usuarios/${row.id}/mfa`, { enabled: next });
+      showToast(
+        "success",
+        next ? "MFA activado correctamente." : "MFA desactivado correctamente."
+      );
+    } catch (error) {
+      // Revierte en caso de error
+      setRows((prev) =>
+        prev.map((r) => (r.id === row.id ? { ...r, mfaEnabled: !next } : r))
+      );
+      showToast("error", getErrorMessage(error, "No se pudo cambiar el estado de MFA."));
+    }
+  };
 
-        setColumnVisibilityModel((prev) => {
-            const nextValue = !(prev[field] !== false);
+  const toggleColumn = (field: string) => {
+    if (field === "correo") return;
 
-            const nextModel = {
-            ...prev,
-            [field]: nextValue,
-            };
+    setColumnVisibilityModel((prev) => {
+      const nextValue = !(prev[field] !== false);
 
-            const protectedFields = ["correo", "role", "clinicaNombre", "estado"];
-            const visibleCount = protectedFields.filter((key) => nextModel[key] !== false).length;
+      const nextModel = {
+        ...prev,
+        [field]: nextValue,
+      };
 
-            if (visibleCount === 0) {
-            return prev;
-            }
+      const protectedFields = ["correo", "role", "clinicaNombre", "estado"];
+      const visibleCount = protectedFields.filter((key) => nextModel[key] !== false).length;
 
-            return nextModel;
-        });
-    };
+      if (visibleCount === 0) {
+        return prev;
+      }
+
+      return nextModel;
+    });
+  };
 
   const resetColumns = () => {
     setColumnVisibilityModel(initialVisibilityModel);
@@ -625,8 +706,8 @@ export default function UsuariosPage() {
         sortable: false,
         filterable: false,
         disableColumnMenu: true,
-        width: 126,
-        minWidth: 126,
+        width: 156,
+        minWidth: 156,
         align: "center",
         headerAlign: "center",
         renderCell: (params: GridRenderCellParams<UserRow>) => (
@@ -644,28 +725,44 @@ export default function UsuariosPage() {
             }}
           >
             <Stack direction="row" spacing={0.25} alignItems="center" justifyContent="center">
-                <Tooltip title="Editar">
+              <Tooltip title="Editar">
                 <IconButton size="small" onClick={() => openEdit(params.row)}>
-                    <EditOutlined fontSize="small" />
+                  <EditOutlined fontSize="small" />
                 </IconButton>
-                </Tooltip>
+              </Tooltip>
 
-                <Tooltip title={params.row.estado === "activo" ? "Suspender" : "Reactivar"}>
-                <IconButton size="small" onClick={() => askToggleStatus(params.row)}>
-                    {params.row.estado === "activo" ? (
-                    <PauseCircleOutline fontSize="small" />
-                    ) : (
-                    <PlayCircleOutline fontSize="small" />
-                    )}
+              <Tooltip title={params.row.mfaEnabled ? "Desactivar MFA" : "Activar MFA"}>
+                <IconButton
+                  size="small"
+                  onClick={() => toggleMfa(params.row)}
+                  sx={{ color: params.row.mfaEnabled ? "primary.main" : "action.disabled" }}
+                >
+                  <SecurityOutlined fontSize="small" />
                 </IconButton>
-                </Tooltip>
+              </Tooltip>
+
+              <Tooltip title={params.row.estado === "activo" ? "Suspender" : "Reactivar"}>
+                <IconButton size="small" onClick={() => askToggleStatus(params.row)}>
+                  {params.row.estado === "activo" ? (
+                    <PauseCircleOutline fontSize="small" />
+                  ) : (
+                    <PlayCircleOutline fontSize="small" />
+                  )}
+                </IconButton>
+              </Tooltip>
             </Stack>
           </Box>
         ),
       },
     ],
-    [theme.palette.mode, sortModel]
+    [sortModel, theme.palette.mode]
   );
+
+  const hasFilters =
+    Boolean(debouncedSearch) ||
+    roleFilter !== "todos" ||
+    statusFilter !== "todos" ||
+    clinicFilter !== "todas";
 
   return (
     <AdminLayout
@@ -760,7 +857,7 @@ export default function UsuariosPage() {
             }
           >
             <MenuItem value="todas">Todas</MenuItem>
-            {clinicsMock.map((clinic) => (
+            {clinics.map((clinic) => (
               <MenuItem key={clinic.id} value={clinic.id}>
                 {clinic.nombre}
               </MenuItem>
@@ -785,7 +882,7 @@ export default function UsuariosPage() {
 
         <Box sx={{ width: "100%", minHeight: 420 }}>
           <DataGrid
-            rows={paginatedRows}
+            rows={rows}
             rowCount={totalRows}
             columns={columns}
             localeText={localeText}
@@ -796,7 +893,21 @@ export default function UsuariosPage() {
             onColumnVisibilityModelChange={setColumnVisibilityModel}
             sortingMode="server"
             sortModel={sortModel}
-            onSortModelChange={setSortModel}
+            onSortModelChange={(model) => {
+              if (!model.length) {
+                setSortModel([{ field: "correo", sort: "asc" }]);
+                return;
+              }
+
+              const next = model[0];
+
+              if (!next || next.field === "rowActions") {
+                setSortModel([{ field: "correo", sort: "asc" }]);
+                return;
+              }
+
+              setSortModel([next]);
+            }}
             paginationMode="server"
             pagination
             paginationModel={paginationModel}
@@ -807,8 +918,9 @@ export default function UsuariosPage() {
               })
             }
             pageSizeOptions={[PAGE_SIZE]}
+            loading={loading}
             slots={{
-              noRowsOverlay: EmptyState,
+              noRowsOverlay: () => <EmptyState loading={loading} hasFilters={hasFilters} />,
             }}
             sx={{
               border: 0,
@@ -882,7 +994,7 @@ export default function UsuariosPage() {
         mode={dialogMode}
         initialData={editingUser}
         existingUsers={rows}
-        clinics={clinicsMock}
+        clinics={clinics}
         submitting={formSubmitting}
         onClose={() => {
           if (formSubmitting) return;
@@ -894,20 +1006,16 @@ export default function UsuariosPage() {
 
       <ConfirmUserActionDialog
         open={confirmOpen}
-        title={
-          selectedUser?.estado === "activo"
-            ? "Suspender usuario"
-            : "Reactivar usuario"
-        }
+        title={selectedUser?.estado === "activo" ? "Suspender usuario" : "Reactivar usuario"}
         description={
           selectedUser?.estado === "activo"
             ? "Esta acción impedirá temporalmente el acceso del usuario al sistema."
             : "El usuario volverá a tener acceso al sistema."
         }
-        confirmText={
-          selectedUser?.estado === "activo" ? "Suspender" : "Reactivar"
-        }
+        confirmText={selectedUser?.estado === "activo" ? "Suspender" : "Reactivar"}
+        loading={statusSubmitting}
         onClose={() => {
+          if (statusSubmitting) return;
           setConfirmOpen(false);
           setSelectedUser(null);
         }}
