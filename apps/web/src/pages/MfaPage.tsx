@@ -79,9 +79,15 @@ export default function MfaPage() {
         nav("/dashboard", { replace: true });
       }
     } catch (e: any) {
-      setServerError(
-        e?.response?.data?.message ?? e?.message ?? "No se pudo verificar el código"
-      );
+      const data = e?.response?.data;
+      reset({ code: "" });
+      if (data?.code === "LOCKED") {
+        nav("/login?reason=locked", { replace: true });
+      } else if (data?.code === "EXPIRED" || data?.code === "INVALID_CHALLENGE") {
+        nav("/login?reason=challenge-expired", { replace: true });
+      } else {
+        setServerError(data?.message ?? "No se pudo verificar el código");
+      }
     } finally {
       setLoading(false);
     }
@@ -379,7 +385,11 @@ export default function MfaPage() {
                     },
                   }}
                 >
-                  {loading ? <CircularProgress size={22} color="inherit" /> : "Verificar"}
+                  {loading ? (
+                    <CircularProgress size={22} color="inherit" />
+                  ) : (
+                    "Verificar"
+                  )}
                 </Button>
 
                 <Box sx={{ textAlign: "center", mt: 0.5 }}>

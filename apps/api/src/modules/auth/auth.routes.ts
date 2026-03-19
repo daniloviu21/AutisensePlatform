@@ -16,11 +16,11 @@ export const authRouter = Router();
 // ─── Rate limiters ────────────────────────────────────────────────────────────
 
 const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+  windowMs: 5 * 60 * 1000,
   limit: 5,
   standardHeaders: "draft-8",
   legacyHeaders: false,
-  message: { message: "Demasiados intentos de inicio de sesión. Intenta de nuevo en 15 minutos." },
+  message: { message: "Demasiados intentos de inicio de sesión. Intenta de nuevo en 5 minutos." },
   skipSuccessfulRequests: true,
 });
 
@@ -147,6 +147,23 @@ authRouter.post("/login", loginLimiter, async (req, res) => {
 
     // ── MFA habilitado → emitir challenge, NO tokens ──────────────────────────
     if (user.mfaEnabled) {
+      // Verificar si hay un bloqueo temporal activo antes de enviar el correo
+      const lockedChallenge = await prisma.mfaChallenge.findFirst({
+        where: {
+          userId: user.id,
+          lockedUntil: { gt: new Date() },
+        },
+      });
+
+      if (lockedChallenge) {
+        return res.status(423).json({
+          code: "LOCKED",
+          message:
+            "Demasiados intentos. Tu cuenta está bloqueada temporalmente. Intenta en 5 minutos.",
+          lockedUntil: lockedChallenge.lockedUntil!.toISOString(),
+        });
+      }
+
       const { challengeId, code } = await createMfaChallenge(user.id);
       await sendMfaCode(user.correo, code);
       return res.json({ requiresMfa: true, challengeId });
@@ -172,6 +189,7 @@ authRouter.post("/login", loginLimiter, async (req, res) => {
         role: user.rol.rol,
         clinicId: user.id_clinica ?? null,
         mustChangePassword: user.must_change_password,
+        mfaEnabled: user.mfaEnabled,
       },
     });
   } catch (e: any) {
@@ -208,36 +226,63 @@ authRouter.post("/mfa/verify", mfaVerifyLimiter, async (req, res) => {
     });
 
     if (!challenge) {
-      return res.status(401).json({ message: "Código inválido o expirado" });
+      return res.status(401).json({ code: "INVALID_CHALLENGE", message: "Código inválido o expirado" });
     }
 
     if (challenge.used) {
-      return res.status(401).json({ message: "Este código ya fue utilizado" });
+      return res.status(401).json({ code: "USED_CHALLENGE", message: "Este código ya fue utilizado" });
     }
 
     if (challenge.expiresAt < new Date()) {
-      return res.status(401).json({ message: "El código ha expirado. Solicita uno nuevo." });
+      return res.status(401).json({ code: "EXPIRED", message: "El código ha expirado. Solicita uno nuevo." });
     }
 
-    if (challenge.failedAttempts >= 5) {
-      return res.status(429).json({ message: "Máximo de intentos alcanzado. Solicita un nuevo código." });
+    if (challenge.lockedUntil && challenge.lockedUntil > new Date()) {
+      return res.status(423).json({
+        code: "LOCKED",
+        message: "Demasiados intentos. Intenta nuevamente en 5 minutos.",
+        lockedUntil: challenge.lockedUntil.toISOString(),
+      });
+    }
+
+    // Reset lock si expiró la penalización
+    if (challenge.lockedUntil && challenge.lockedUntil <= new Date()) {
+      await prisma.mfaChallenge.update({
+        where: { id: challengeId },
+        data: { failedAttempts: 0, lockedUntil: null },
+      });
+      challenge.failedAttempts = 0;
     }
 
     const codeMatch = challenge.codeHash === hashToken(code);
 
     if (!codeMatch) {
-      // Incrementa contador de intentos fallidos
-      await prisma.mfaChallenge.update({
-        where: { id: challengeId },
-        data: { failedAttempts: { increment: 1 } },
-      });
+      const newAttempts = challenge.failedAttempts + 1;
+      
+      if (newAttempts >= 5) {
+        const lockTime = new Date(Date.now() + 5 * 60 * 1000);
+        await prisma.mfaChallenge.update({
+          where: { id: challengeId },
+          data: { failedAttempts: newAttempts, lockedUntil: lockTime },
+        });
+        return res.status(423).json({
+          code: "LOCKED",
+          message: "Demasiados intentos. Intenta nuevamente en 5 minutos.",
+          lockedUntil: lockTime.toISOString(),
+        });
+      } else {
+        await prisma.mfaChallenge.update({
+          where: { id: challengeId },
+          data: { failedAttempts: newAttempts },
+        });
 
-      const remaining = 4 - challenge.failedAttempts;
-      return res.status(401).json({
-        message: remaining > 0
-          ? `Código incorrecto. Te quedan ${remaining} intento(s).`
-          : "Código incorrecto. No tienes más intentos.",
-      });
+        const remaining = 5 - newAttempts;
+        return res.status(401).json({
+          code: "INCORRECT_CODE",
+          message: "Código incorrecto.",
+          remainingAttempts: remaining,
+        });
+      }
     }
 
     // ── Código correcto → consumir challenge y emitir tokens ─────────────────
@@ -274,6 +319,7 @@ authRouter.post("/mfa/verify", mfaVerifyLimiter, async (req, res) => {
         role: user.rol.rol,
         clinicId: user.id_clinica ?? null,
         mustChangePassword: user.must_change_password,
+        mfaEnabled: user.mfaEnabled,
       },
     });
   } catch (e: any) {

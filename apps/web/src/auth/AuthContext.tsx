@@ -15,6 +15,7 @@ type User = {
   role: UserRole;
   clinicId: number | null;
   mustChangePassword: boolean;
+  mfaEnabled: boolean;
 };
 
 /** Resultado posible de login() */

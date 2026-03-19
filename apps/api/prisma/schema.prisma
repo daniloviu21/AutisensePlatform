@@ -91,14 +91,15 @@ model RefreshToken {
 }
 
 model MfaChallenge {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   userId         Int
-  usuario        Usuario  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usuario        Usuario   @relation(fields: [userId], references: [id], onDelete: Cascade)
   codeHash       String
   expiresAt      DateTime
-  used           Boolean  @default(false)
-  failedAttempts Int      @default(0)
-  createdAt      DateTime @default(now())
+  used           Boolean   @default(false)
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+  createdAt      DateTime  @default(now())
 
   @@index([userId])
 }

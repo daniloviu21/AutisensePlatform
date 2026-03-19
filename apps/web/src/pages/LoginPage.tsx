@@ -42,13 +42,17 @@ export default function LoginPage() {
     const reason = searchParams.get("reason");
     if (reason === "session-expired") {
       setServerError("Tu sesión expiró. Inicia sesión nuevamente.");
+    } else if (reason === "challenge-expired") {
+      setServerError("El código de verificación expiró. Inicia sesión nuevamente.");
+    } else if (reason === "locked") {
+      setServerError("Demasiados intentos. Tu cuenta está bloqueada temporalmente. Intenta en 5 minutos.");
     }
   }, [searchParams]);
 
   const {
     register,
     handleSubmit,
-    formState: { errors, isValid },
+    formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
     mode: "onBlur",
@@ -83,7 +87,12 @@ export default function LoginPage() {
 
       nav("/dashboard", { replace: true });
     } catch (e: any) {
-      setServerError(e?.response?.data?.message ?? e?.message ?? "No se pudo iniciar sesión");
+      const data = e?.response?.data;
+      if (data?.code === "LOCKED") {
+        setServerError("Demasiados intentos. Tu cuenta está bloqueada temporalmente. Intenta en 5 minutos.");
+      } else {
+        setServerError(data?.message ?? e?.message ?? "No se pudo iniciar sesión");
+      }
     } finally {
       setLoading(false);
     }
@@ -298,7 +307,7 @@ export default function LoginPage() {
 
                 <Button
                   type="submit"
-                  disabled={!isValid || loading}
+                  disabled={loading}
                   variant="contained"
                   fullWidth
                   sx={{

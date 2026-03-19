@@ -111,7 +111,9 @@ http.interceptors.response.use(
     const isAuthRoute =
       url.includes("/auth/login") ||
       url.includes("/auth/refresh") ||
-      url.includes("/auth/logout");
+      url.includes("/auth/logout") ||
+      url.includes("/auth/mfa/verify") ||
+      url.includes("/auth/mfa/resend");
 
     if (isAuthRoute) {
       return Promise.reject(error);
