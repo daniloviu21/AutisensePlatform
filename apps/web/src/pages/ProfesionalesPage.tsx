@@ -2,6 +2,7 @@ import {
   Add,
   ArrowDownward,
   ArrowUpward,
+  CheckBoxOutlineBlank,
   EditOutlined,
   PauseCircleOutline,
   PlayCircleOutline,
@@ -373,6 +374,37 @@ export default function ProfesionalesPage() {
 
   const [loading, setLoading] = useState(false);
 
+  // ── Multi-select ───────────────────────────────────────────────────────────
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
+  const toggleSelectMode = () => {
+    setSelectMode((prev) => {
+      if (prev) setSelectedIds(new Set());
+      return !prev;
+    });
+  };
+
+  const toggleRowSelection = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const allVisibleSelected = rows.length > 0 && rows.every((r) => selectedIds.has(r.id));
+  const someSelected = selectedIds.size > 0 && !allVisibleSelected;
+
+  const toggleSelectAll = () => {
+    if (allVisibleSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(rows.map((r) => r.id)));
+    }
+  };
+
   const [toast, setToast] = useState<ToastState>({
     open: false,
     severity: "success",
@@ -541,8 +573,19 @@ export default function ProfesionalesPage() {
     setConfirmOpen(true);
   };
 
+  // Bulk suspend/reactivate: opens confirm using first selected row as reference.
+  const askBulkToggleStatus = () => {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    const firstRow = rows.find((r) => r.id === ids[0]);
+    if (!firstRow) return;
+    setSelectedProfessional(firstRow);
+    setConfirmOpen(true);
+  };
   const confirmToggleStatus = async () => {
     if (!selectedProfessional) return;
+
+    const ids = selectedIds.size > 0 ? [...selectedIds] : [selectedProfessional.id];
 
     try {
       setStatusSubmitting(true);
@@ -550,19 +593,26 @@ export default function ProfesionalesPage() {
       const nextState: ProfessionalStatus =
         selectedProfessional.estado === "activo" ? "suspendido" : "activo";
 
-      await http.patch(`/profesionales/${selectedProfessional.id}/status`, {
-        estado: nextState,
-      });
+      await Promise.all(
+        ids.map((id) =>
+          http.patch(`/profesionales/${id}/status`, { estado: nextState })
+        )
+      );
 
       showToast(
         "success",
-        nextState === "suspendido"
-          ? "El profesional fue suspendido correctamente."
-          : "El profesional fue reactivado correctamente."
+        ids.length === 1
+          ? nextState === "suspendido"
+            ? "El profesional fue suspendido correctamente."
+            : "El profesional fue reactivado correctamente."
+          : nextState === "suspendido"
+          ? `${ids.length} profesionales suspendidos correctamente.`
+          : `${ids.length} profesionales reactivados correctamente.`
       );
 
       setConfirmOpen(false);
       setSelectedProfessional(null);
+      setSelectedIds(new Set());
       await loadProfessionals();
     } catch (error) {
       showToast("error", getErrorMessage(error, "No se pudo actualizar el estado."));
@@ -614,6 +664,37 @@ export default function ProfesionalesPage() {
 
   const columns = useMemo<GridColDef<ProfessionalRow>[]>(
     () => [
+      // ── Checkbox column (only rendered in selectMode) ──────────────────
+      ...(selectMode
+        ? [
+            {
+              field: "__select__",
+              headerName: "",
+              sortable: false,
+              filterable: false,
+              disableColumnMenu: true,
+              width: 52,
+              minWidth: 52,
+              align: "center" as const,
+              headerAlign: "center" as const,
+              renderHeader: () => (
+                <Checkbox
+                  size="small"
+                  checked={allVisibleSelected}
+                  indeterminate={someSelected}
+                  onChange={toggleSelectAll}
+                />
+              ),
+              renderCell: (params: GridRenderCellParams<ProfessionalRow>) => (
+                <Checkbox
+                  size="small"
+                  checked={selectedIds.has(params.row.id)}
+                  onChange={() => toggleRowSelection(params.row.id)}
+                />
+              ),
+            } satisfies GridColDef<ProfessionalRow>,
+          ]
+        : []),
       {
         field: "profesional",
         headerName: "Profesional",
@@ -794,7 +875,7 @@ export default function ProfesionalesPage() {
         ),
       },
     ],
-    [sortModel, theme.palette.mode, canWrite]
+    [sortModel, theme.palette.mode, canWrite, selectMode, selectedIds, allVisibleSelected, someSelected]
   );
 
   const hasFilters =
@@ -807,22 +888,40 @@ export default function ProfesionalesPage() {
       title="Profesionales"
       subtitle="Gestión de profesionales de la clínica"
       actions={
-        canWrite ? (
-          <Button
-            variant="contained"
-            startIcon={<Add />}
-            onClick={openCreate}
-            sx={{
-              textTransform: "none",
-              borderRadius: 2,
-              px: 2,
-              height: 40,
-              boxShadow: "none",
-            }}
-          >
-            Nuevo profesional
-          </Button>
-        ) : undefined
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Tooltip title={selectMode ? "Cancelar selección" : "Selección múltiple"}>
+            <IconButton
+              onClick={toggleSelectMode}
+              sx={{
+                width: 40,
+                height: 40,
+                border: "1px solid",
+                borderColor: selectMode ? "primary.main" : "divider",
+                borderRadius: 1.5,
+                color: selectMode ? "primary.main" : "inherit",
+                bgcolor: selectMode ? "action.selected" : "transparent",
+              }}
+            >
+              <CheckBoxOutlineBlank fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          {canWrite && !selectMode && (
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={openCreate}
+              sx={{
+                textTransform: "none",
+                borderRadius: 2,
+                px: 2,
+                height: 40,
+                boxShadow: "none",
+              }}
+            >
+              Nuevo profesional
+            </Button>
+          )}
+        </Stack>
       }
     >
       <Paper
@@ -830,25 +929,83 @@ export default function ProfesionalesPage() {
         sx={{
           borderRadius: 2,
           border: "1px solid",
-          borderColor: "divider",
+          borderColor: selectMode ? "var(--color-border-info, #90CAF9)" : "divider",
           overflow: "hidden",
+          transition: "border-color .2s",
         }}
       >
-        <Box
-          sx={{
-            px: 2,
-            py: 2,
-            borderBottom: "1px solid",
-            borderColor: "divider",
-            display: "grid",
-            gridTemplateColumns: {
-              xs: "1fr",
-              xl: lockedClinicId ? "1fr 180px 48px" : "1fr 180px 220px 48px",
-            },
-            gap: 1.5,
-            alignItems: "center",
-          }}
-        >
+        {/* ── Selection toolbar (shown when selectMode is on) ── */}
+        {selectMode ? (
+          <Box
+            sx={{
+              px: 2,
+              py: 1.5,
+              borderBottom: "1px solid var(--color-border-info, #90CAF9)",
+              backgroundColor: "var(--color-background-info, #E3F2FD)",
+              display: "flex",
+              alignItems: "center",
+              gap: 2,
+            }}
+          >
+            <Typography sx={{ fontWeight: 700, color: "info.dark", minWidth: 120 }}>
+              {selectedIds.size} seleccionado{selectedIds.size !== 1 ? "s" : ""}
+            </Typography>
+
+            <Stack direction="row" spacing={1}>
+              {canWrite && (
+                <>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<EditOutlined fontSize="small" />}
+                    disabled={selectedIds.size !== 1}
+                    onClick={() => {
+                      const row = rows.find((r) => selectedIds.has(r.id));
+                      if (row) openEdit(row);
+                    }}
+                    sx={{ textTransform: "none", borderRadius: 1.5 }}
+                  >
+                    Editar
+                  </Button>
+
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color="error"
+                    startIcon={
+                      rows.find((r) => selectedIds.has(r.id))?.estado === "activo"
+                        ? <PauseCircleOutline fontSize="small" />
+                        : <PlayCircleOutline fontSize="small" />
+                    }
+                    disabled={selectedIds.size === 0}
+                    onClick={askBulkToggleStatus}
+                    sx={{ textTransform: "none", borderRadius: 1.5 }}
+                  >
+                    {rows.find((r) => selectedIds.has(r.id))?.estado === "activo"
+                      ? "Dar de baja"
+                      : "Reactivar"}
+                  </Button>
+                </>
+              )}
+            </Stack>
+          </Box>
+        ) : (
+          /* ── Normal filter toolbar ── */
+          <Box
+            sx={{
+              px: 2,
+              py: 2,
+              borderBottom: "1px solid",
+              borderColor: "divider",
+              display: "grid",
+              gridTemplateColumns: {
+                xs: "1fr",
+                xl: lockedClinicId ? "1fr 180px 48px" : "1fr 180px 220px 48px",
+              },
+              gap: 1.5,
+              alignItems: "center",
+            }}
+          >
           <TextField
             placeholder="Buscar por nombre, correo, especialidad u organización"
             value={search}
@@ -910,6 +1067,7 @@ export default function ProfesionalesPage() {
             </IconButton>
           </Tooltip>
         </Box>
+        )} {/* end of normal toolbar */}
 
         <Box sx={{ width: "100%", minHeight: 420 }}>
           <DataGrid
@@ -953,6 +1111,9 @@ export default function ProfesionalesPage() {
             slots={{
               noRowsOverlay: () => <EmptyState loading={loading} hasFilters={hasFilters} />,
             }}
+            getRowClassName={(params) =>
+              selectMode && selectedIds.has(params.row.id) ? "row-selected" : ""
+            }
             sx={{
               border: 0,
               minHeight: 420,
@@ -988,6 +1149,9 @@ export default function ProfesionalesPage() {
                   theme.palette.mode === "dark"
                     ? "rgba(255,255,255,0.02)"
                     : "rgba(15,23,42,0.02)",
+              },
+              "& .row-selected": {
+                backgroundColor: "var(--color-background-info, #E3F2FD) !important",
               },
               "& .MuiDataGrid-row:hover .row-actions": {
                 opacity: 1,
