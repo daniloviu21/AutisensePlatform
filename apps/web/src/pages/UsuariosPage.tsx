@@ -2,6 +2,8 @@ import {
   Add,
   ArrowDownward,
   ArrowUpward,
+  CheckBoxOutlineBlank,
+  Close,
   EditOutlined,
   PauseCircleOutline,
   PlayCircleOutline,
@@ -347,6 +349,33 @@ export default function UsuariosPage() {
 
   const [loading, setLoading] = useState(false);
 
+  // ── Multi-select ────────────────────────────────────────────────────
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
+  const toggleSelectMode = () => {
+    setSelectMode((prev) => {
+      if (prev) setSelectedIds(new Set());
+      return !prev;
+    });
+  };
+
+  const toggleRowSelection = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const allVisibleSelected = rows.length > 0 && rows.every((r) => selectedIds.has(r.id));
+  const someSelected = selectedIds.size > 0 && !allVisibleSelected;
+
+  const toggleSelectAll = () => {
+    if (allVisibleSelected) setSelectedIds(new Set());
+    else setSelectedIds(new Set(rows.map((r) => r.id)));
+  };
+
   const [toast, setToast] = useState<ToastState>({
     open: false,
     severity: "success",
@@ -510,8 +539,18 @@ export default function UsuariosPage() {
     setConfirmOpen(true);
   };
 
+  const askBulkToggleStatus = () => {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    const firstRow = rows.find((r) => r.id === ids[0]);
+    if (!firstRow) return;
+    setSelectedUser(firstRow);
+    setConfirmOpen(true);
+  };
   const confirmToggleStatus = async () => {
     if (!selectedUser) return;
+
+    const ids = selectedIds.size > 0 ? [...selectedIds] : [selectedUser.id];
 
     try {
       setStatusSubmitting(true);
@@ -519,25 +558,27 @@ export default function UsuariosPage() {
       const nextState: UserStatus =
         selectedUser.estado === "activo" ? "suspendido" : "activo";
 
-      await http.patch(`/usuarios/${selectedUser.id}/status`, {
-        estado: nextState,
-      });
+      await Promise.all(
+        ids.map((id) => http.patch(`/usuarios/${id}/status`, { estado: nextState }))
+      );
 
       showToast(
         "success",
-        nextState === "suspendido"
-          ? "El usuario fue suspendido correctamente."
-          : "El usuario fue reactivado correctamente."
+        ids.length === 1
+          ? nextState === "suspendido"
+            ? "El usuario fue suspendido correctamente."
+            : "El usuario fue reactivado correctamente."
+          : nextState === "suspendido"
+            ? `${ids.length} usuarios suspendidos correctamente.`
+            : `${ids.length} usuarios reactivados correctamente.`
       );
 
       setConfirmOpen(false);
       setSelectedUser(null);
+      setSelectedIds(new Set());
       await loadUsers();
     } catch (error) {
-      showToast(
-        "error",
-        getErrorMessage(error, "No se pudo actualizar el estado del usuario.")
-      );
+      showToast("error", getErrorMessage(error, "No se pudo actualizar el estado del usuario."));
     } finally {
       setStatusSubmitting(false);
     }
@@ -600,6 +641,27 @@ export default function UsuariosPage() {
 
   const columns = useMemo<GridColDef<UserRow>[]>(
     () => [
+      ...(selectMode
+        ? [
+          {
+            field: "__select__",
+            headerName: "",
+            sortable: false,
+            filterable: false,
+            disableColumnMenu: true,
+            width: 52,
+            minWidth: 52,
+            align: "center" as const,
+            headerAlign: "center" as const,
+            renderHeader: () => (
+              <Checkbox size="small" checked={allVisibleSelected} indeterminate={someSelected} onChange={toggleSelectAll} />
+            ),
+            renderCell: (params: GridRenderCellParams<UserRow>) => (
+              <Checkbox size="small" checked={selectedIds.has(params.row.id)} onChange={() => toggleRowSelection(params.row.id)} />
+            ),
+          } satisfies GridColDef<UserRow>,
+        ]
+        : []),
       {
         field: "correo",
         headerName: "Correo",
@@ -755,7 +817,7 @@ export default function UsuariosPage() {
         ),
       },
     ],
-    [sortModel, theme.palette.mode]
+    [sortModel, theme.palette.mode, selectMode, selectedIds, allVisibleSelected, someSelected]
   );
 
   const hasFilters =
@@ -773,13 +835,7 @@ export default function UsuariosPage() {
           variant="contained"
           startIcon={<Add />}
           onClick={openCreate}
-          sx={{
-            textTransform: "none",
-            borderRadius: 2,
-            px: 2,
-            height: 40,
-            boxShadow: "none",
-          }}
+          sx={{ textTransform: "none", borderRadius: 2, px: 2, height: 40, boxShadow: "none" }}
         >
           Nuevo usuario
         </Button>
@@ -790,22 +846,61 @@ export default function UsuariosPage() {
         sx={{
           borderRadius: 2,
           border: "1px solid",
-          borderColor: "divider",
+          borderColor: selectMode ? "info.main" : "divider",
           overflow: "hidden",
+          transition: "border-color .2s",
         }}
       >
-        <Box
-          sx={{
-            px: 2,
-            py: 2,
-            borderBottom: "1px solid",
-            borderColor: "divider",
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", xl: "1fr 180px 180px 220px 48px" },
-            gap: 1.5,
-            alignItems: "center",
-          }}
-        >
+        {selectMode ? (
+          <Box
+            sx={{
+              px: 2, py: 1.5,
+              borderBottom: "1px solid",
+              borderColor: "info.main",
+              bgcolor: (t) => alpha(t.palette.info.main, t.palette.mode === "dark" ? 0.16 : 0.08),
+              display: "flex", alignItems: "center", gap: 2,
+            }}
+          >
+            <Typography sx={{ fontWeight: 700, color: "info.main", minWidth: 120 }}>
+              {selectedIds.size} seleccionado{selectedIds.size !== 1 ? "s" : ""}
+            </Typography>
+            <Stack direction="row" spacing={1}>
+              <Button size="small" variant="outlined" startIcon={<EditOutlined fontSize="small" />}
+                disabled={selectedIds.size !== 1}
+                onClick={() => { const r = rows.find((row) => selectedIds.has(row.id)); if (r) openEdit(r); }}
+                sx={{ textTransform: "none", borderRadius: 1.5 }}
+              >Editar</Button>
+              <Button size="small" variant="outlined" startIcon={<SecurityOutlined fontSize="small" />}
+                disabled={selectedIds.size !== 1}
+                onClick={() => { const r = rows.find((row) => selectedIds.has(row.id)); if (r) void toggleMfa(r); }}
+                sx={{ textTransform: "none", borderRadius: 1.5 }}
+              >{rows.find((r) => selectedIds.has(r.id))?.mfaEnabled ? "Desactivar MFA" : "Activar MFA"}</Button>
+              <Button size="small" variant="outlined" color="error"
+                startIcon={rows.find((r) => selectedIds.has(r.id))?.estado === "activo" ? <PauseCircleOutline fontSize="small" /> : <PlayCircleOutline fontSize="small" />}
+                disabled={selectedIds.size === 0}
+                onClick={askBulkToggleStatus}
+                sx={{ textTransform: "none", borderRadius: 1.5 }}
+              >{rows.find((r) => selectedIds.has(r.id))?.estado === "activo" ? "Dar de baja" : "Reactivar"}</Button>
+            </Stack>
+            <Box sx={{ flex: 1 }} />
+            <Tooltip title="Cancelar selección">
+              <IconButton onClick={toggleSelectMode} sx={{ width: 44, height: 44, border: "1px solid", borderColor: "info.main", borderRadius: 1.5, color: "info.main", bgcolor: (t) => alpha(t.palette.info.main, 0.1) }}>
+                <Close fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        ) : (
+          <Box
+            sx={{
+              px: 2, py: 2,
+              borderBottom: "1px solid",
+              borderColor: "divider",
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", xl: "1fr 180px 180px 220px 48px 48px" },
+              gap: 1.5,
+              alignItems: "center",
+            }}
+          >
           <TextField
             placeholder="Buscar por correo, rol o clínica"
             value={search}
@@ -864,21 +959,22 @@ export default function UsuariosPage() {
             ))}
           </TextField>
 
+          <Tooltip title="Seleccionar">
+            <IconButton onClick={toggleSelectMode} sx={{ width: 44, height: 44, border: "1px solid", borderColor: "divider", borderRadius: 1.5 }}>
+              <CheckBoxOutlineBlank fontSize="small" />
+            </IconButton>
+          </Tooltip>
+
           <Tooltip title="Configurar columnas">
             <IconButton
               onClick={() => setColumnsDialogOpen(true)}
-              sx={{
-                width: 44,
-                height: 44,
-                border: "1px solid",
-                borderColor: "divider",
-                borderRadius: 1.5,
-              }}
+              sx={{ width: 44, height: 44, border: "1px solid", borderColor: "divider", borderRadius: 1.5 }}
             >
               <SettingsOutlined fontSize="small" />
             </IconButton>
           </Tooltip>
         </Box>
+        )} {/* end normal toolbar */}
 
         <Box sx={{ width: "100%", minHeight: 420 }}>
           <DataGrid
@@ -922,6 +1018,9 @@ export default function UsuariosPage() {
             slots={{
               noRowsOverlay: () => <EmptyState loading={loading} hasFilters={hasFilters} />,
             }}
+            getRowClassName={(params) =>
+              selectMode && selectedIds.has(params.row.id) ? "row-selected" : ""
+            }
             sx={{
               border: 0,
               minHeight: 420,
@@ -957,6 +1056,9 @@ export default function UsuariosPage() {
                   theme.palette.mode === "dark"
                     ? "rgba(255,255,255,0.02)"
                     : "rgba(15,23,42,0.02)",
+              },
+              "& .row-selected": {
+                backgroundColor: `${alpha(theme.palette.info.main, theme.palette.mode === "dark" ? 0.16 : 0.08)} !important`,
               },
               "& .MuiDataGrid-row:hover .row-actions": {
                 opacity: 1,

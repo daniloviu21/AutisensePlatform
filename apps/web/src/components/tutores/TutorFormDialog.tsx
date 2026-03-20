@@ -17,6 +17,7 @@ import {
 } from "@mui/material";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
+import { blockInvalidNameCharsOnKeyDown, blockNonDigitsOnKeyDown, sanitizePhone, validatePhoneMX } from "../../utils/inputSanitizers";
 
 export type TutorStatus = "activo" | "suspendido" | "pendiente";
 export type ClinicOption = { id: number; nombre: string; estado: string };
@@ -51,8 +52,6 @@ function collapseSpaces(v: string) {
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_RE = /^[0-9+\-\s()]{7,30}$/;
-
 const EMPTY_FORM: TutorFormValues = {
   correo: "",
   password: "",
@@ -178,8 +177,10 @@ export default function TutorFormDialog({
       }
 
       case "telefono": {
-        const v = collapseSpaces(current.telefono);
-        if (v && !PHONE_RE.test(v)) return "Ingresa un teléfono válido";
+        const v = current.telefono.replace(/\D/g, "");
+        if (v && v.length < 10) return "El teléfono debe tener 10 dígitos";
+        if (v && v.length > 10) return "El teléfono no puede exceder 10 dígitos";
+        if (v && !validatePhoneMX(v)) return "Ingresa un teléfono válido de México";
         return "";
       }
 
@@ -345,6 +346,7 @@ export default function TutorFormDialog({
                     value={values.nombre}
                     onChange={(e) => setField("nombre", e.target.value)}
                     onBlur={() => handleBlur("nombre")}
+                    onKeyDown={blockInvalidNameCharsOnKeyDown}
                     error={!!errors.nombre}
                     helperText={errors.nombre || " "}
                     inputProps={{ maxLength: 80, autoCapitalize: "words" }}
@@ -357,6 +359,7 @@ export default function TutorFormDialog({
                     value={values.ap_paterno}
                     onChange={(e) => setField("ap_paterno", e.target.value)}
                     onBlur={() => handleBlur("ap_paterno")}
+                    onKeyDown={blockInvalidNameCharsOnKeyDown}
                     error={!!errors.ap_paterno}
                     helperText={errors.ap_paterno || " "}
                     inputProps={{ maxLength: 80, autoCapitalize: "words" }}
@@ -368,6 +371,7 @@ export default function TutorFormDialog({
                     value={values.ap_materno}
                     onChange={(e) => setField("ap_materno", e.target.value)}
                     onBlur={() => handleBlur("ap_materno")}
+                    onKeyDown={blockInvalidNameCharsOnKeyDown}
                     error={!!errors.ap_materno}
                     helperText={errors.ap_materno || " "}
                     inputProps={{ maxLength: 80, autoCapitalize: "words" }}
@@ -378,11 +382,12 @@ export default function TutorFormDialog({
                   fullWidth
                   label="Teléfono"
                   value={values.telefono}
-                  onChange={(e) => setField("telefono", e.target.value)}
+                  onChange={(e) => setField("telefono", sanitizePhone(e.target.value))}
                   onBlur={() => handleBlur("telefono")}
+                  onKeyDown={blockNonDigitsOnKeyDown}
                   error={!!errors.telefono}
                   helperText={errors.telefono || " "}
-                  inputProps={{ maxLength: 30 }}
+                  inputProps={{ maxLength: 10, inputMode: "numeric" }}
                 />
               </Stack>
 

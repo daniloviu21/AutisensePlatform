@@ -2,6 +2,8 @@ import {
   Add,
   ArrowDownward,
   ArrowUpward,
+  CheckBoxOutlineBlank,
+  Close,
   EditOutlined,
   InfoOutlined,
   PauseCircleOutline,
@@ -353,6 +355,40 @@ export default function PacientesPage() {
 
   const [loading, setLoading] = useState(false);
 
+  // ── Multi-select ────────────────────────────────────────────────────
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
+  const toggleSelectMode = () => {
+    setSelectMode((prev) => { if (prev) setSelectedIds(new Set()); return !prev; });
+  };
+  const toggleRowSelection = (id: number) => {
+    setSelectedIds((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  };
+  const allVisibleSelected = rows.length > 0 && rows.every((r) => selectedIds.has(r.id));
+  const someSelected = selectedIds.size > 0 && !allVisibleSelected;
+  const toggleSelectAll = () => { if (allVisibleSelected) setSelectedIds(new Set()); else setSelectedIds(new Set(rows.map((r) => r.id))); };
+
+  const handleBulkToggleStatus = async () => {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    const firstRow = rows.find((r) => r.id === ids[0]);
+    if (!firstRow) return;
+    const nextState: PacienteStatus = firstRow.estado === "activo" ? "inactivo" : "activo";
+    try {
+      await Promise.all(ids.map((id) => http.patch(`/pacientes/${id}/status`, { estado: nextState })));
+      showToast("success",
+        ids.length === 1
+          ? nextState === "activo" ? "El paciente fue reactivado correctamente." : "El paciente fue desactivado correctamente."
+          : nextState === "activo" ? `${ids.length} pacientes reactivados correctamente.` : `${ids.length} pacientes desactivados correctamente.`
+      );
+      setSelectedIds(new Set());
+      await loadPacientes();
+    } catch (error) {
+      showToast("error", getErrorMessage(error, "No se pudo actualizar el estado."));
+    }
+  };
+
   const [toast, setToast] = useState<ToastState>({
     open: false,
     severity: "success",
@@ -577,6 +613,22 @@ export default function PacientesPage() {
 
   const columns = useMemo<GridColDef<PacienteRow>[]>(
     () => [
+      ...(selectMode
+        ? [
+          {
+            field: "__select__",
+            headerName: "",
+            sortable: false,
+            filterable: false,
+            disableColumnMenu: true,
+            width: 52,
+            minWidth: 52,
+            align: "center" as const,
+            headerAlign: "center" as const,
+            renderHeader: () => (<Checkbox size="small" checked={allVisibleSelected} indeterminate={someSelected} onChange={toggleSelectAll} />),
+            renderCell: (params: GridRenderCellParams<PacienteRow>) => (<Checkbox size="small" checked={selectedIds.has(params.row.id)} onChange={() => toggleRowSelection(params.row.id)} />),
+          } satisfies GridColDef<PacienteRow>,
+        ] : []),
       {
         field: "nombre",
         headerName: "Paciente",
@@ -734,7 +786,7 @@ export default function PacientesPage() {
         ),
       },
     ],
-    [sortModel, theme.palette.mode, canEdit, canToggleStatus]
+    [sortModel, theme.palette.mode, canEdit, canToggleStatus, selectMode, selectedIds, allVisibleSelected, someSelected]
   );
 
   const hasFilters =
@@ -765,89 +817,98 @@ export default function PacientesPage() {
         ) : undefined
       }
     >
-      <Paper
-        elevation={0}
-        sx={{
-          borderRadius: 2,
-          border: "1px solid",
-          borderColor: "divider",
-          overflow: "hidden",
-        }}
-      >
-        <Box
-          sx={{
-            px: 2,
-            py: 2,
-            borderBottom: "1px solid",
-            borderColor: "divider",
-            display: "grid",
-            gridTemplateColumns: isSuperAdmin
-              ? { xs: "1fr", xl: "1fr 180px 220px 48px" }
-              : { xs: "1fr", xl: "1fr 180px 48px" },
-            gap: 1.5,
-            alignItems: "center",
+      <Paper elevation={0} sx={{ borderRadius: 2, border: "1px solid", borderColor: selectMode ? "info.main" : "divider", overflow: "hidden", transition: "border-color .2s" }}>
+        {selectMode ? (
+          <Box sx={{ px: 2, py: 1.5, borderBottom: "1px solid", borderColor: "info.main", bgcolor: (t) => alpha(t.palette.info.main, t.palette.mode === "dark" ? 0.16 : 0.08), display: "flex", alignItems: "center", gap: 2 }}>
+            <Typography sx={{ fontWeight: 700, color: "info.main", minWidth: 120 }}>
+              {selectedIds.size} seleccionado{selectedIds.size !== 1 ? "s" : ""}
+            </Typography>
+            <Stack direction="row" spacing={1}>
+              <Button size="small" variant="outlined" startIcon={<InfoOutlined fontSize="small" />}
+                disabled={selectedIds.size !== 1}
+                onClick={() => { const r = rows.find((row) => selectedIds.has(row.id)); if (r) openDetail(r.id); }}
+                sx={{ textTransform: "none", borderRadius: 1.5 }}
+              >Ver detalle</Button>
+              {canEdit && (
+                <Button size="small" variant="outlined" startIcon={<EditOutlined fontSize="small" />}
+                  disabled={selectedIds.size !== 1}
+                  onClick={() => { const r = rows.find((row) => selectedIds.has(row.id)); if (r) openEdit(r); }}
+                  sx={{ textTransform: "none", borderRadius: 1.5 }}
+                >Editar</Button>
+              )}
+              {canToggleStatus && (
+                <Button size="small" variant="outlined" color="error"
+                  startIcon={rows.find((r) => selectedIds.has(r.id))?.estado === "activo" ? <PauseCircleOutline fontSize="small" /> : <PlayCircleOutline fontSize="small" />}
+                  disabled={selectedIds.size === 0}
+                  onClick={() => void handleBulkToggleStatus()}
+                  sx={{ textTransform: "none", borderRadius: 1.5 }}
+                >{rows.find((r) => selectedIds.has(r.id))?.estado === "activo" ? "Dar de baja" : "Reactivar"}</Button>
+              )}
+            </Stack>
+            <Box sx={{ flex: 1 }} />
+            <Tooltip title="Cancelar selección"><IconButton onClick={toggleSelectMode} sx={{ width: 44, height: 44, border: "1px solid", borderColor: "info.main", borderRadius: 1.5, color: "info.main", bgcolor: (t) => alpha(t.palette.info.main, 0.1) }}><Close fontSize="small" /></IconButton></Tooltip>
+          </Box>
+        ) : (
+          <Box sx={{
+            px: 2, py: 2, borderBottom: "1px solid", borderColor: "divider", display: "grid",
+            gridTemplateColumns: isSuperAdmin ? { xs: "1fr", xl: "1fr 180px 220px 48px 48px" } : { xs: "1fr", xl: "1fr 180px 48px 48px" },
+            gap: 1.5, alignItems: "center"
           }}
-        >
-          <TextField
-            placeholder="Buscar por nombre o diagnóstico"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            fullWidth
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Search fontSize="small" />
-                </InputAdornment>
-              ),
-            }}
-          />
-
-          <TextField
-            select
-            fullWidth
-            label="Estado"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as "todos" | PacienteStatus)}
           >
-            <MenuItem value="todos">Todos</MenuItem>
-            <MenuItem value="activo">Activo</MenuItem>
-            <MenuItem value="inactivo">Inactivo</MenuItem>
-          </TextField>
+            <TextField
+              placeholder="Buscar por nombre o diagnóstico"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              fullWidth
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Search fontSize="small" />
+                  </InputAdornment>
+                ),
+              }}
+            />
 
-          {isSuperAdmin && (
             <TextField
               select
               fullWidth
-              label="Clínica"
-              value={clinicFilter}
-              onChange={(e) =>
-                setClinicFilter(e.target.value === "todas" ? "todas" : Number(e.target.value))
-              }
+              label="Estado"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as "todos" | PacienteStatus)}
             >
-              <MenuItem value="todas">Todas las clínicas</MenuItem>
-              {clinics.map((clinic) => (
-                <MenuItem key={clinic.id} value={clinic.id}>
-                  {clinic.nombre}
-                </MenuItem>
-              ))}
+              <MenuItem value="todos">Todos</MenuItem>
+              <MenuItem value="activo">Activo</MenuItem>
+              <MenuItem value="inactivo">Inactivo</MenuItem>
             </TextField>
-          )}
 
-          <Tooltip title="Configurar columnas">
-            <IconButton
-              onClick={() => setColumnsDialogOpen(true)}
-              sx={{
-                width: 44,
-                height: 44,
-                border: "1px solid",
-                borderColor: "divider",
-                borderRadius: 1.5,
-              }}
-            >
-              <SettingsOutlined fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        </Box>
+            {isSuperAdmin && (
+              <TextField
+                select
+                fullWidth
+                label="Clínica"
+                value={clinicFilter}
+                onChange={(e) =>
+                  setClinicFilter(e.target.value === "todas" ? "todas" : Number(e.target.value))
+                }
+              >
+                <MenuItem value="todas">Todas las clínicas</MenuItem>
+                {clinics.map((clinic) => (
+                  <MenuItem key={clinic.id} value={clinic.id}>
+                    {clinic.nombre}
+                  </MenuItem>
+                ))}
+              </TextField>
+            )}
+
+            <Tooltip title="Seleccionar"><IconButton onClick={toggleSelectMode} sx={{ width: 44, height: 44, border: "1px solid", borderColor: "divider", borderRadius: 1.5 }}><CheckBoxOutlineBlank fontSize="small" /></IconButton></Tooltip>
+
+            <Tooltip title="Configurar columnas">
+              <IconButton onClick={() => setColumnsDialogOpen(true)} sx={{ width: 44, height: 44, border: "1px solid", borderColor: "divider", borderRadius: 1.5 }}>
+                <SettingsOutlined fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        )} {/* end normal toolbar */}
 
         <Box sx={{ width: "100%", minHeight: 420 }}>
           <DataGrid
@@ -888,9 +949,8 @@ export default function PacientesPage() {
             }
             pageSizeOptions={[PAGE_SIZE]}
             loading={loading}
-            slots={{
-              noRowsOverlay: () => <EmptyState loading={loading} hasFilters={hasFilters} />,
-            }}
+            getRowClassName={(params) => selectMode && selectedIds.has(params.row.id) ? "row-selected" : ""}
+            slots={{ noRowsOverlay: () => <EmptyState loading={loading} hasFilters={hasFilters} /> }}
             sx={{
               border: 0,
               minHeight: 420,
@@ -922,10 +982,10 @@ export default function PacientesPage() {
                 alignItems: "center",
               },
               "& .MuiDataGrid-row:hover": {
-                backgroundColor:
-                  theme.palette.mode === "dark"
-                    ? "rgba(255,255,255,0.02)"
-                    : "rgba(15,23,42,0.02)",
+                backgroundColor: theme.palette.mode === "dark" ? "rgba(255,255,255,0.02)" : "rgba(15,23,42,0.02)",
+              },
+              "& .row-selected": {
+                backgroundColor: `${alpha(theme.palette.info.main, theme.palette.mode === "dark" ? 0.16 : 0.08)} !important`,
               },
               "& .MuiDataGrid-row:hover .row-actions": {
                 opacity: 1,
@@ -968,8 +1028,7 @@ export default function PacientesPage() {
               ap_paterno: editingPaciente.ap_paterno,
               ap_materno: editingPaciente.ap_materno ?? "",
               fecha_nacimiento: editingPaciente.fecha_nacimiento?.slice(0, 10) ?? "",
-              sexo: (editingPaciente.sexo as "M" | "F" | "Otro") ?? "M",
-              escolaridad: editingPaciente.escolaridad ?? "",
+              sexo: (editingPaciente.sexo as "M" | "F") ?? "M",
               clinicaId: editingPaciente.clinicaId,
               estado: editingPaciente.estado,
               diagnostico_presuntivo: editingPaciente.diagnostico_presuntivo ?? "",

@@ -16,6 +16,35 @@ import {
   useTheme,
 } from "@mui/material";
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  blockInvalidNameCharsOnKeyDown,
+  blockNonDigitsOnKeyDown,
+  sanitizePhone,
+  validatePhoneMX,
+} from "../../utils/inputSanitizers";
+
+export const ESPECIALIDAD_OPTIONS = [
+  "Psicología",
+  "Psiquiatría",
+  "Terapia de Lenguaje",
+  "Terapia Ocupacional",
+  "Neurología",
+  "Pediatría",
+  "Educación Especial",
+  "Neuropsicología",
+  "Medicina General",
+  "Otro",
+];
+
+export const ORGANIZACION_OPTIONS = [
+  "Clínica Privada",
+  "Hospital Público",
+  "Centro de Terapia",
+  "Escuela / Colegio",
+  "Consultorio Independiente",
+  "ONG / Fundación",
+  "Otro",
+];
 
 export type ProfessionalStatus = "activo" | "suspendido" | "pendiente";
 
@@ -311,11 +340,11 @@ export default function ProfessionalFormDialog({
 
       case "telefono":
         if (!candidate.telefono) return "El teléfono es obligatorio.";
-        if (candidate.telefono.replace(/[^\d]/g, "").length < 10) {
-          return "Ingresa un teléfono válido de al menos 10 dígitos.";
+        if (candidate.telefono.replace(/\D/g, "").length !== 10) {
+          return "Ingresa exactamente 10 dígitos.";
         }
-        if (candidate.telefono.replace(/[^\d]/g, "").length > 15) {
-          return "El teléfono no debe exceder 15 dígitos.";
+        if (!validatePhoneMX(candidate.telefono)) {
+          return "Ingresa un teléfono válido de México.";
         }
         return "";
 
@@ -416,7 +445,7 @@ export default function ProfessionalFormDialog({
     let nextValue = value;
 
     if (field === "telefono" && typeof value === "string") {
-      nextValue = value.replace(/[^\d+\s()-]/g, "") as ProfessionalFormValues[K];
+      nextValue = sanitizePhone(value) as ProfessionalFormValues[K];
     }
 
     setValues((prev) => ({
@@ -703,6 +732,7 @@ export default function ProfessionalFormDialog({
                     value={values.nombre}
                     onChange={(e) => handleFieldChange("nombre", e.target.value)}
                     onBlur={() => handleBlur("nombre")}
+                    onKeyDown={blockInvalidNameCharsOnKeyDown}
                     error={!!errors.nombre}
                     helperText={errors.nombre || " "}
                   />
@@ -716,6 +746,7 @@ export default function ProfessionalFormDialog({
                     value={values.ap_paterno}
                     onChange={(e) => handleFieldChange("ap_paterno", e.target.value)}
                     onBlur={() => handleBlur("ap_paterno")}
+                    onKeyDown={blockInvalidNameCharsOnKeyDown}
                     error={!!errors.ap_paterno}
                     helperText={errors.ap_paterno || " "}
                   />
@@ -728,6 +759,7 @@ export default function ProfessionalFormDialog({
                     value={values.ap_materno}
                     onChange={(e) => handleFieldChange("ap_materno", e.target.value)}
                     onBlur={() => handleBlur("ap_materno")}
+                    onKeyDown={blockInvalidNameCharsOnKeyDown}
                     error={!!errors.ap_materno}
                     helperText={errors.ap_materno || " "}
                   />
@@ -741,14 +773,16 @@ export default function ProfessionalFormDialog({
                     value={values.telefono}
                     onChange={(e) => handleFieldChange("telefono", e.target.value)}
                     onBlur={() => handleBlur("telefono")}
+                    onKeyDown={blockNonDigitsOnKeyDown}
                     error={!!errors.telefono}
                     helperText={errors.telefono || " "}
-                    inputProps={{ inputMode: "tel", maxLength: 18 }}
+                    inputProps={{ inputMode: "numeric", maxLength: 10 }}
                   />
                 </Grid>
 
                 <Grid size={{ xs: 12, md: 4 }}>
                   <TextField
+                    select
                     fullWidth
                     required
                     label="Especialidad"
@@ -757,11 +791,18 @@ export default function ProfessionalFormDialog({
                     onBlur={() => handleBlur("especialidad")}
                     error={!!errors.especialidad}
                     helperText={errors.especialidad || " "}
-                  />
+                  >
+                    {ESPECIALIDAD_OPTIONS.map((opt) => (
+                      <MenuItem key={opt} value={opt}>
+                        {opt}
+                      </MenuItem>
+                    ))}
+                  </TextField>
                 </Grid>
 
                 <Grid size={{ xs: 12, md: 4 }}>
                   <TextField
+                    select
                     fullWidth
                     required
                     label="Organización"
@@ -770,7 +811,13 @@ export default function ProfessionalFormDialog({
                     onBlur={() => handleBlur("organizacion")}
                     error={!!errors.organizacion}
                     helperText={errors.organizacion || " "}
-                  />
+                  >
+                    {ORGANIZACION_OPTIONS.map((opt) => (
+                      <MenuItem key={opt} value={opt}>
+                        {opt}
+                      </MenuItem>
+                    ))}
+                  </TextField>
                 </Grid>
 
                 {(duplicateChecks.sameFullName || duplicateChecks.samePhone) && (

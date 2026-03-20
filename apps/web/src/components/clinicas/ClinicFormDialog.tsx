@@ -14,6 +14,7 @@ import {
   useTheme,
 } from "@mui/material";
 import { useEffect, useMemo, useState } from "react";
+import { blockNonDigitsOnKeyDown, sanitizePhone } from "../../utils/inputSanitizers";
 
 export type ClinicStatus = "activa" | "suspendida";
 
@@ -72,7 +73,7 @@ function normalizeEmail(value: string) {
 }
 
 function normalizePhone(value: string) {
-  return value.replace(/[^\d+]/g, "").trim();
+  return value.replace(/\D/g, "").slice(0, 10);
 }
 
 function cleanComparable(value: string) {
@@ -209,8 +210,8 @@ export default function ClinicFormDialog({
         const raw = current.telefono.trim();
         const digitsOnly = raw.replace(/\D/g, "");
         if (!raw) return "El teléfono es obligatorio";
-        if (digitsOnly.length < 10 || digitsOnly.length > 15)
-          return "Debe contener entre 10 y 15 dígitos";
+        if (digitsOnly.length !== 10)
+          return "El teléfono debe tener exactamente 10 dígitos";
         return "";
       }
 
@@ -283,14 +284,12 @@ export default function ClinicFormDialog({
   };
 
   const handlePhoneChange = (raw: string) => {
-    const cleaned = raw.replace(/[^\d+]/g, "");
+    const cleaned = sanitizePhone(raw);
     setField("telefono", cleaned);
   };
 
   const handlePhoneKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (["e", "E"].includes(e.key)) {
-      e.preventDefault();
-    }
+    blockNonDigitsOnKeyDown(e);
   };
 
   const requestClose = () => {
@@ -393,8 +392,7 @@ export default function ClinicFormDialog({
                   helperText={errors.telefono || " "}
                   inputProps={{
                     inputMode: "numeric",
-                    maxLength: 15,
-                    pattern: "[0-9+]*",
+                    maxLength: 10,
                   }}
                 />
               </Grid>

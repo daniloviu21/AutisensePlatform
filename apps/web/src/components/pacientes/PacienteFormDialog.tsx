@@ -18,9 +18,10 @@ import {
 } from "@mui/material";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
+import { blockInvalidNameCharsOnKeyDown } from "../../utils/inputSanitizers";
 
 export type PacienteStatus = "activo" | "inactivo";
-export type PacienteSexo = "M" | "F" | "Otro";
+export type PacienteSexo = "M" | "F";
 export type ClinicOption = { id: number; nombre: string; estado: string };
 
 export type PacienteFormValues = {
@@ -29,7 +30,6 @@ export type PacienteFormValues = {
   ap_materno: string;
   fecha_nacimiento: string;
   sexo: PacienteSexo;
-  escolaridad: string;
   clinicaId: number | null;
   estado: PacienteStatus;
   diagnostico_presuntivo: string;
@@ -53,7 +53,6 @@ const EMPTY_FORM: PacienteFormValues = {
   ap_materno: "",
   fecha_nacimiento: "",
   sexo: "M",
-  escolaridad: "",
   clinicaId: null,
   estado: "activo",
   diagnostico_presuntivo: "",
@@ -64,29 +63,11 @@ const EMPTY_FORM: PacienteFormValues = {
 const SEXO_OPTIONS: Array<{ value: PacienteSexo; label: string }> = [
   { value: "M", label: "Masculino" },
   { value: "F", label: "Femenino" },
-  { value: "Otro", label: "Otro" },
 ];
 
-const ESCOLARIDAD_OPTIONS = [
-  "Sin escolaridad",
-  "Estimulación temprana",
-  "Preescolar",
-  "Primaria",
-  "Secundaria",
-  "Preparatoria",
-  "Universidad",
-  "Otro",
-];
 
 function collapseSpaces(value: string) {
   return value.replace(/\s+/g, " ").trim();
-}
-
-function cleanComparable(value: string) {
-  return collapseSpaces(value)
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
 }
 
 function isValidDate(value: string) {
@@ -163,7 +144,6 @@ export default function PacienteFormDialog({
       nombre: collapseSpaces(values.nombre),
       ap_paterno: collapseSpaces(values.ap_paterno),
       ap_materno: collapseSpaces(values.ap_materno),
-      escolaridad: collapseSpaces(values.escolaridad),
       diagnostico_presuntivo: collapseSpaces(values.diagnostico_presuntivo),
       antecedentes_relevantes: collapseSpaces(values.antecedentes_relevantes),
       notas_generales: collapseSpaces(values.notas_generales),
@@ -183,7 +163,6 @@ export default function PacienteFormDialog({
       nombre: collapseSpaces(base.nombre),
       ap_paterno: collapseSpaces(base.ap_paterno),
       ap_materno: collapseSpaces(base.ap_materno),
-      escolaridad: collapseSpaces(base.escolaridad),
       diagnostico_presuntivo: collapseSpaces(base.diagnostico_presuntivo),
       antecedentes_relevantes: collapseSpaces(base.antecedentes_relevantes),
       notas_generales: collapseSpaces(base.notas_generales),
@@ -241,13 +220,8 @@ export default function PacienteFormDialog({
 
       case "sexo":
         if (!current.sexo) return "Selecciona una opción";
+        if (!["M", "F"].includes(current.sexo)) return "Selecciona una opción válida";
         return "";
-
-      case "escolaridad": {
-        const value = collapseSpaces(current.escolaridad);
-        if (value.length > 60) return "No puede exceder 60 caracteres";
-        return "";
-      }
 
       case "clinicaId": {
         if (isClinicLocked) return "";
@@ -291,7 +265,6 @@ export default function PacienteFormDialog({
       ap_materno: validateField("ap_materno", current),
       fecha_nacimiento: validateField("fecha_nacimiento", current),
       sexo: validateField("sexo", current),
-      escolaridad: validateField("escolaridad", current),
       clinicaId: validateField("clinicaId", current),
       estado: validateField("estado", current),
       diagnostico_presuntivo: validateField("diagnostico_presuntivo", current),
@@ -326,7 +299,6 @@ export default function PacienteFormDialog({
       nombre: collapseSpaces(values.nombre),
       ap_paterno: collapseSpaces(values.ap_paterno),
       ap_materno: collapseSpaces(values.ap_materno),
-      escolaridad: collapseSpaces(values.escolaridad),
       diagnostico_presuntivo: collapseSpaces(values.diagnostico_presuntivo),
       antecedentes_relevantes: collapseSpaces(values.antecedentes_relevantes),
       notas_generales: collapseSpaces(values.notas_generales),
@@ -346,7 +318,6 @@ export default function PacienteFormDialog({
     errors.ap_materno ||
     errors.fecha_nacimiento ||
     errors.sexo ||
-    errors.escolaridad ||
     errors.clinicaId ||
     errors.estado
   );
@@ -394,8 +365,6 @@ export default function PacienteFormDialog({
     await onSave(payload);
   };
 
-  const sexoActual = values.sexo;
-  const escolaridadActual = values.escolaridad || "Sin especificar";
   const clinicaActual =
     normalizedValues.clinicaId == null
       ? "Sin clínica"
@@ -479,6 +448,7 @@ export default function PacienteFormDialog({
                       value={values.nombre}
                       onChange={(e) => setField("nombre", e.target.value)}
                       onBlur={() => handleBlur("nombre")}
+                      onKeyDown={blockInvalidNameCharsOnKeyDown}
                       error={!!errors.nombre}
                       helperText={errors.nombre || " "}
                       inputProps={{ maxLength: 80, autoCapitalize: "words" }}
@@ -491,6 +461,7 @@ export default function PacienteFormDialog({
                       value={values.ap_paterno}
                       onChange={(e) => setField("ap_paterno", e.target.value)}
                       onBlur={() => handleBlur("ap_paterno")}
+                      onKeyDown={blockInvalidNameCharsOnKeyDown}
                       error={!!errors.ap_paterno}
                       helperText={errors.ap_paterno || " "}
                       inputProps={{ maxLength: 80, autoCapitalize: "words" }}
@@ -502,6 +473,7 @@ export default function PacienteFormDialog({
                       value={values.ap_materno}
                       onChange={(e) => setField("ap_materno", e.target.value)}
                       onBlur={() => handleBlur("ap_materno")}
+                      onKeyDown={blockInvalidNameCharsOnKeyDown}
                       error={!!errors.ap_materno}
                       helperText={errors.ap_materno || " "}
                       inputProps={{ maxLength: 80, autoCapitalize: "words" }}
@@ -561,24 +533,6 @@ export default function PacienteFormDialog({
                       {SEXO_OPTIONS.map((option) => (
                         <MenuItem key={option.value} value={option.value}>
                           {option.label}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-
-                    <TextField
-                      select
-                      fullWidth
-                      label="Escolaridad"
-                      value={values.escolaridad}
-                      onChange={(e) => setField("escolaridad", e.target.value)}
-                      onBlur={() => handleBlur("escolaridad")}
-                      error={!!errors.escolaridad}
-                      helperText={errors.escolaridad || " "}
-                    >
-                      <MenuItem value="">— Sin especificar —</MenuItem>
-                      {ESCOLARIDAD_OPTIONS.map((option) => (
-                        <MenuItem key={option} value={option}>
-                          {option}
                         </MenuItem>
                       ))}
                     </TextField>

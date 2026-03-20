@@ -1,5 +1,6 @@
 import {
   Alert,
+  Avatar,
   Box,
   Button,
   CircularProgress,
@@ -15,11 +16,14 @@ import {
   Switch,
   TextField,
   Typography,
+  Slide,
 } from "@mui/material";
-import { ArrowBackOutlined, Visibility, VisibilityOff } from "@mui/icons-material";
-import { useEffect, useMemo, useState } from "react";
+import type { SlideProps } from "@mui/material";
+import { ArrowBackOutlined, SaveOutlined, Visibility, VisibilityOff } from "@mui/icons-material";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { blockNonDigitsOnKeyDown, sanitizePhone, blockInvalidNameCharsOnKeyDown, validatePhoneMX } from "../utils/inputSanitizers";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useLocation, useNavigate } from "react-router-dom";
 import AdminLayout from "../layout/AdminLayout";
@@ -41,6 +45,39 @@ const passwordSchema = z
   });
 
 type PasswordForm = z.infer<typeof passwordSchema>;
+
+// ── Profile schema ──
+const profileSchema = z.object({
+  nombre: z.string().min(1, "El nombre es requerido").max(60),
+  ap_paterno: z.string().min(1, "El apellido paterno es requerido").max(60),
+  ap_materno: z.string().max(60).optional(),
+  telefono: z
+    .string()
+    .max(20)
+    .optional()
+    .refine((val) => !val || validatePhoneMX(val), "Debe ser un número válido de México"),
+});
+
+type ProfileForm = z.infer<typeof profileSchema>;
+
+type ProfileData = {
+  role: string;
+  nombre: string | null;
+  ap_paterno: string | null;
+  ap_materno: string | null;
+  telefono: string | null;
+  foto_url?: string | null;
+};
+
+type ToastState = {
+  open: boolean;
+  severity: "success" | "error" | "info" | "warning";
+  message: string;
+};
+
+const ToastTransition = (props: SlideProps) => {
+  return <Slide {...props} direction="up" />;
+};
 
 type SettingsTab = "perfil" | "seguridad" | "ayuda";
 
@@ -92,13 +129,72 @@ export default function ConfiguracionPage() {
   const { user, setUser } = useAuth();
   const [activeTab, setActiveTab] = useSettingsTab();
 
+  const [toast, setToast] = useState<ToastState>({
+    open: false,
+    severity: "success",
+    message: "",
+  });
+
+  const showToast = useCallback((severity: ToastState["severity"], message: string) => {
+    setToast({ open: true, severity, message });
+  }, []);
+
+  // ── Profile form ────────────────────────────────────────────────────
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+
+  const hasPersonalProfile = user?.role === "profesional" || user?.role === "tutor";
+
+  const {
+    register: registerProfile,
+    handleSubmit: handleSubmitProfile,
+    reset: resetProfile,
+    formState: { errors: profileErrors, isDirty: profileDirty },
+  } = useForm<ProfileForm>({
+    resolver: zodResolver(profileSchema),
+    mode: "onBlur",
+  });
+
+  const loadProfile = useCallback(async () => {
+    if (!hasPersonalProfile) return;
+    setProfileLoading(true);
+    try {
+      const { data } = await http.get<ProfileData>("/me/profile");
+      resetProfile({
+        nombre: data.nombre ?? "",
+        ap_paterno: data.ap_paterno ?? "",
+        ap_materno: data.ap_materno ?? "",
+        telefono: data.telefono ?? "",
+      });
+    } catch {
+      showToast("error", "No se pudo cargar el perfil.");
+    } finally {
+      setProfileLoading(false);
+    }
+  }, [hasPersonalProfile, resetProfile]);
+
+  useEffect(() => {
+    if (activeTab === "perfil") void loadProfile();
+  }, [activeTab, loadProfile]);
+
+  const onSaveProfile = async (data: ProfileForm) => {
+    setProfileSaving(true);
+    try {
+      await http.patch("/me/profile", data);
+      showToast("success", "Perfil actualizado correctamente.");
+      void loadProfile();
+    } catch (e: any) {
+      showToast("error", e?.response?.data?.message ?? "No se pudo guardar el perfil.");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
   // ── Password form ──────────────────────────────────────────────────────────
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [pwdLoading, setPwdLoading] = useState(false);
-  const [pwdSuccess, setPwdSuccess] = useState<string | null>(null);
-  const [pwdError, setPwdError] = useState<string | null>(null);
 
   const {
     register,
@@ -111,8 +207,6 @@ export default function ConfiguracionPage() {
   });
 
   const onSavePassword = async (data: PasswordForm) => {
-    setPwdError(null);
-    setPwdSuccess(null);
     setPwdLoading(true);
     try {
       await http.patch("/me/password", {
@@ -120,10 +214,10 @@ export default function ConfiguracionPage() {
         newPassword: data.newPassword,
         confirmPassword: data.confirmPassword,
       });
-      setPwdSuccess("Contraseña actualizada correctamente.");
+      showToast("success", "Contraseña actualizada correctamente.");
       resetForm();
     } catch (e: any) {
-      setPwdError(e?.response?.data?.message ?? "No se pudo actualizar la contraseña.");
+      showToast("error", e?.response?.data?.message ?? "No se pudo actualizar la contraseña.");
     } finally {
       setPwdLoading(false);
     }
@@ -131,22 +225,19 @@ export default function ConfiguracionPage() {
 
   // ── MFA toggle ─────────────────────────────────────────────────────────────
   const [mfaLoading, setMfaLoading] = useState(false);
-  const [mfaError, setMfaError] = useState<string | null>(null);
-  const [mfaSuccess, setMfaSuccess] = useState<string | null>(null);
 
   const handleMfaToggle = async () => {
     if (mfaLoading || !user) return;
     const next = !user.mfaEnabled;
-    setMfaError(null);
     setMfaLoading(true);
     try {
       await http.patch("/me/mfa", { mfaEnabled: next });
       const updated = { ...user, mfaEnabled: next };
       localStorage.setItem("user", JSON.stringify(updated));
       setUser(updated);
-      setMfaSuccess(next ? "Autenticación de dos factores activada." : "Autenticación de dos factores desactivada.");
+      showToast("success", next ? "Autenticación de dos factores activada." : "Autenticación de dos factores desactivada.");
     } catch (e: any) {
-      setMfaError(e?.response?.data?.message ?? "No se pudo actualizar la configuración MFA.");
+      showToast("error", e?.response?.data?.message ?? "No se pudo actualizar la configuración MFA.");
     } finally {
       setMfaLoading(false);
     }
@@ -244,30 +335,95 @@ export default function ConfiguracionPage() {
           {/* ── Mi perfil ── */}
           {activeTab === "perfil" ? (
             <Stack spacing={3}>
-              <SectionTitle
-                title="Mi perfil"
-                subtitle="Información básica de la cuenta actual."
-              />
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-                  gap: 2,
-                }}
-              >
-                <TextField label="Correo" value={user?.correo ?? ""} fullWidth disabled />
-                <TextField label="Rol" value={user?.role ?? ""} fullWidth disabled />
-                <TextField
-                  label="Clínica asociada"
-                  value={user?.clinicId == null ? "Sistema / Sin clínica" : `Clínica #${user.clinicId}`}
-                  fullWidth
-                  disabled
-                />
-                <TextField label="Estado" value="Activo" fullWidth disabled />
-              </Box>
-              <Alert severity="info" variant="outlined">
-                Más adelante aquí podrás editar datos personales y preferencias de cuenta.
-              </Alert>
+              <SectionTitle title="Mi perfil" subtitle="Información personal editable de tu cuenta." />
+
+              {/* Avatar + correo (read-only) */}
+              <Stack direction="row" spacing={2} alignItems="center">
+                <Avatar
+                  sx={{ width: 56, height: 56, fontSize: 22, fontWeight: 800, bgcolor: "primary.main", color: "primary.contrastText" }}
+                >
+                  {user?.correo?.charAt(0)?.toUpperCase() ?? "?"}
+                </Avatar>
+                <Box>
+                  <Typography sx={{ fontWeight: 700 }}>{user?.correo}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {user?.role === "super_admin" && "Super administrador"}
+                    {user?.role === "clinic_admin" && "Admin de clínica"}
+                    {user?.role === "profesional" && "Profesional"}
+                    {user?.role === "tutor" && "Tutor"}
+                  </Typography>
+                </Box>
+              </Stack>
+
+              <Divider />
+
+              {hasPersonalProfile ? (
+                profileLoading ? (
+                  <Stack alignItems="center" sx={{ py: 4 }}><CircularProgress size={28} /></Stack>
+                ) : (
+                  <Stack spacing={2.5} component="form" onSubmit={handleSubmitProfile(onSaveProfile)} noValidate>
+                    <Typography sx={{ fontWeight: 700 }}>Datos personales</Typography>
+
+                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2 }}>
+                      <TextField
+                        label="Nombre"
+                        fullWidth
+                        {...registerProfile("nombre")}
+                        onKeyDown={blockInvalidNameCharsOnKeyDown}
+                        error={!!profileErrors.nombre}
+                        helperText={profileErrors.nombre?.message ?? " "}
+                      />
+                      <TextField
+                        label="Apellido paterno"
+                        fullWidth
+                        {...registerProfile("ap_paterno")}
+                        onKeyDown={blockInvalidNameCharsOnKeyDown}
+                        error={!!profileErrors.ap_paterno}
+                        helperText={profileErrors.ap_paterno?.message ?? " "}
+                      />
+                      <TextField
+                        label="Apellido materno"
+                        fullWidth
+                        {...registerProfile("ap_materno")}
+                        onKeyDown={blockInvalidNameCharsOnKeyDown}
+                        helperText={" "}
+                      />
+                      <TextField
+                        label="Teléfono"
+                        fullWidth
+                        {...registerProfile("telefono")}
+                        onKeyDown={blockNonDigitsOnKeyDown}
+                        onChange={(e) => {
+                          const sanitized = sanitizePhone(e.target.value);
+                          registerProfile("telefono").onChange({
+                            ...e,
+                            target: { ...e.target, value: sanitized },
+                          });
+                        }}
+                        inputProps={{ maxLength: 10, inputMode: "numeric" }}
+                        helperText={" "}
+                      />
+                    </Box>
+
+                    <Stack direction="row" justifyContent="flex-start" sx={{ mt: 1 }}>
+                      <Button
+                        type="submit"
+                        variant="contained"
+                        disabled={profileSaving || !profileDirty}
+                        startIcon={profileSaving ? <CircularProgress size={16} color="inherit" /> : <SaveOutlined />}
+                        sx={{ textTransform: "none" }}
+                      >
+                        {profileSaving ? "Guardando..." : "Guardar cambios"}
+                      </Button>
+                    </Stack>
+                  </Stack>
+                )
+              ) : (
+                <Alert severity="info" variant="outlined">
+                  Las cuentas de administrador no tienen datos personales adicionales editables.
+                  El correo electrónico y el acceso son gestionados por el administrador del sistema.
+                </Alert>
+              )}
             </Stack>
           ) : null}
 
@@ -341,9 +497,6 @@ export default function ConfiguracionPage() {
                     }}
                   />
                 </Box>
-
-                {pwdError && <Alert severity="error">{pwdError}</Alert>}
-                {pwdSuccess && <Alert severity="success">{pwdSuccess}</Alert>}
               </Stack>
 
               {/* Submit password form */}
@@ -379,11 +532,6 @@ export default function ConfiguracionPage() {
                           ? "Activada. Se pedirá un código por correo al iniciar sesión."
                           : "Desactivada. Actívala para mayor seguridad."}
                       </Typography>
-                      {mfaError && (
-                        <Typography variant="body2" color="error" sx={{ mt: 0.5 }}>
-                          {mfaError}
-                        </Typography>
-                      )}
                     </Box>
                     <Box sx={{ position: "relative", display: "flex", alignItems: "center" }}>
                       {mfaLoading && (
@@ -398,15 +546,6 @@ export default function ConfiguracionPage() {
                   </Stack>
                 </Paper>
               </Stack>
-
-              {/* MFA success snackbar */}
-              <Snackbar
-                open={!!mfaSuccess}
-                autoHideDuration={3500}
-                onClose={() => setMfaSuccess(null)}
-                anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-                message={mfaSuccess}
-              />
             </Stack>
           ) : null}
 
@@ -441,6 +580,25 @@ export default function ConfiguracionPage() {
           ) : null}
         </Paper>
       </Box>
+
+      {/* Global Toast */}
+      <Snackbar
+        open={toast.open}
+        autoHideDuration={2600}
+        onClose={() => setToast((prev) => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        TransitionComponent={ToastTransition}
+      >
+        <Alert
+          elevation={6}
+          variant="filled"
+          severity={toast.severity}
+          onClose={() => setToast((prev) => ({ ...prev, open: false }))}
+          sx={{ minWidth: 280 }}
+        >
+          {toast.message}
+        </Alert>
+      </Snackbar>
     </AdminLayout>
   );
 }

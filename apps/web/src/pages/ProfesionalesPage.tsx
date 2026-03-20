@@ -3,6 +3,7 @@ import {
   ArrowDownward,
   ArrowUpward,
   CheckBoxOutlineBlank,
+  Close,
   EditOutlined,
   PauseCircleOutline,
   PlayCircleOutline,
@@ -549,14 +550,14 @@ export default function ProfesionalesPage() {
         formData.append("foto", photoFile);
       }
 
-    if (dialogMode === "create") {
-    await http.post("/profesionales", formData);
-    showToast("success", "El profesional se agregó correctamente.");
-    setPaginationModel((prev) => ({ ...prev, page: 0 }));
-    } else if (editingProfessional) {
-    await http.put(`/profesionales/${editingProfessional.id}`, formData);
-    showToast("success", "El profesional se actualizó correctamente.");
-    }
+      if (dialogMode === "create") {
+        await http.post("/profesionales", formData);
+        showToast("success", "El profesional se agregó correctamente.");
+        setPaginationModel((prev) => ({ ...prev, page: 0 }));
+      } else if (editingProfessional) {
+        await http.put(`/profesionales/${editingProfessional.id}`, formData);
+        showToast("success", "El profesional se actualizó correctamente.");
+      }
 
       setDialogOpen(false);
       setEditingProfessional(null);
@@ -606,8 +607,8 @@ export default function ProfesionalesPage() {
             ? "El profesional fue suspendido correctamente."
             : "El profesional fue reactivado correctamente."
           : nextState === "suspendido"
-          ? `${ids.length} profesionales suspendidos correctamente.`
-          : `${ids.length} profesionales reactivados correctamente.`
+            ? `${ids.length} profesionales suspendidos correctamente.`
+            : `${ids.length} profesionales reactivados correctamente.`
       );
 
       setConfirmOpen(false);
@@ -667,33 +668,33 @@ export default function ProfesionalesPage() {
       // ── Checkbox column (only rendered in selectMode) ──────────────────
       ...(selectMode
         ? [
-            {
-              field: "__select__",
-              headerName: "",
-              sortable: false,
-              filterable: false,
-              disableColumnMenu: true,
-              width: 52,
-              minWidth: 52,
-              align: "center" as const,
-              headerAlign: "center" as const,
-              renderHeader: () => (
-                <Checkbox
-                  size="small"
-                  checked={allVisibleSelected}
-                  indeterminate={someSelected}
-                  onChange={toggleSelectAll}
-                />
-              ),
-              renderCell: (params: GridRenderCellParams<ProfessionalRow>) => (
-                <Checkbox
-                  size="small"
-                  checked={selectedIds.has(params.row.id)}
-                  onChange={() => toggleRowSelection(params.row.id)}
-                />
-              ),
-            } satisfies GridColDef<ProfessionalRow>,
-          ]
+          {
+            field: "__select__",
+            headerName: "",
+            sortable: false,
+            filterable: false,
+            disableColumnMenu: true,
+            width: 52,
+            minWidth: 52,
+            align: "center" as const,
+            headerAlign: "center" as const,
+            renderHeader: () => (
+              <Checkbox
+                size="small"
+                checked={allVisibleSelected}
+                indeterminate={someSelected}
+                onChange={toggleSelectAll}
+              />
+            ),
+            renderCell: (params: GridRenderCellParams<ProfessionalRow>) => (
+              <Checkbox
+                size="small"
+                checked={selectedIds.has(params.row.id)}
+                onChange={() => toggleRowSelection(params.row.id)}
+              />
+            ),
+          } satisfies GridColDef<ProfessionalRow>,
+        ]
         : []),
       {
         field: "profesional",
@@ -888,40 +889,22 @@ export default function ProfesionalesPage() {
       title="Profesionales"
       subtitle="Gestión de profesionales de la clínica"
       actions={
-        <Stack direction="row" spacing={1} alignItems="center">
-          <Tooltip title={selectMode ? "Cancelar selección" : "Selección múltiple"}>
-            <IconButton
-              onClick={toggleSelectMode}
-              sx={{
-                width: 40,
-                height: 40,
-                border: "1px solid",
-                borderColor: selectMode ? "primary.main" : "divider",
-                borderRadius: 1.5,
-                color: selectMode ? "primary.main" : "inherit",
-                bgcolor: selectMode ? "action.selected" : "transparent",
-              }}
-            >
-              <CheckBoxOutlineBlank fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          {canWrite && !selectMode && (
-            <Button
-              variant="contained"
-              startIcon={<Add />}
-              onClick={openCreate}
-              sx={{
-                textTransform: "none",
-                borderRadius: 2,
-                px: 2,
-                height: 40,
-                boxShadow: "none",
-              }}
-            >
-              Nuevo profesional
-            </Button>
-          )}
-        </Stack>
+        canWrite ? (
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={openCreate}
+            sx={{
+              textTransform: "none",
+              borderRadius: 2,
+              px: 2,
+              height: 40,
+              boxShadow: "none",
+            }}
+          >
+            Nuevo profesional
+          </Button>
+        ) : undefined
       }
     >
       <Paper
@@ -929,7 +912,7 @@ export default function ProfesionalesPage() {
         sx={{
           borderRadius: 2,
           border: "1px solid",
-          borderColor: selectMode ? "var(--color-border-info, #90CAF9)" : "divider",
+          borderColor: selectMode ? "info.main" : "divider",
           overflow: "hidden",
           transition: "border-color .2s",
         }}
@@ -940,14 +923,15 @@ export default function ProfesionalesPage() {
             sx={{
               px: 2,
               py: 1.5,
-              borderBottom: "1px solid var(--color-border-info, #90CAF9)",
-              backgroundColor: "var(--color-background-info, #E3F2FD)",
+              borderBottom: "1px solid",
+              borderColor: "info.main",
+              bgcolor: (theme) => alpha(theme.palette.info.main, theme.palette.mode === "dark" ? 0.16 : 0.08),
               display: "flex",
               alignItems: "center",
               gap: 2,
             }}
           >
-            <Typography sx={{ fontWeight: 700, color: "info.dark", minWidth: 120 }}>
+            <Typography sx={{ fontWeight: 700, color: "info.main", minWidth: 120 }}>
               {selectedIds.size} seleccionado{selectedIds.size !== 1 ? "s" : ""}
             </Typography>
 
@@ -988,6 +972,25 @@ export default function ProfesionalesPage() {
                 </>
               )}
             </Stack>
+
+            <Box sx={{ flex: 1 }} />
+
+            <Tooltip title="Cancelar selección">
+              <IconButton
+                onClick={toggleSelectMode}
+                sx={{
+                  width: 44,
+                  height: 44,
+                  border: "1px solid",
+                  borderColor: "info.main",
+                  borderRadius: 1.5,
+                  color: "info.main",
+                  bgcolor: (theme) => alpha(theme.palette.info.main, 0.1),
+                }}
+              >
+                <Close fontSize="small" />
+              </IconButton>
+            </Tooltip>
           </Box>
         ) : (
           /* ── Normal filter toolbar ── */
@@ -1000,73 +1003,88 @@ export default function ProfesionalesPage() {
               display: "grid",
               gridTemplateColumns: {
                 xs: "1fr",
-                xl: lockedClinicId ? "1fr 180px 48px" : "1fr 180px 220px 48px",
+                xl: lockedClinicId ? "1fr 180px 48px 48px" : "1fr 180px 220px 48px 48px",
               },
               gap: 1.5,
               alignItems: "center",
             }}
           >
-          <TextField
-            placeholder="Buscar por nombre, correo, especialidad u organización"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            fullWidth
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Search fontSize="small" />
-                </InputAdornment>
-              ),
-            }}
-          />
+            <TextField
+              placeholder="Buscar por nombre, correo, especialidad u organización"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              fullWidth
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Search fontSize="small" />
+                  </InputAdornment>
+                ),
+              }}
+            />
 
-          <TextField
-            select
-            fullWidth
-            label="Estado"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as "todos" | ProfessionalStatus)}
-          >
-            <MenuItem value="todos">Todos</MenuItem>
-            <MenuItem value="activo">Activo</MenuItem>
-            <MenuItem value="pendiente">Pendiente</MenuItem>
-            <MenuItem value="suspendido">Suspendido</MenuItem>
-          </TextField>
-
-          {!lockedClinicId && (
             <TextField
               select
               fullWidth
-              label="Clínica"
-              value={clinicFilter}
-              onChange={(e) =>
-                setClinicFilter(e.target.value === "todas" ? "todas" : Number(e.target.value))
-              }
+              label="Estado"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as "todos" | ProfessionalStatus)}
             >
-              <MenuItem value="todas">Todas</MenuItem>
-              {clinics.map((clinic) => (
-                <MenuItem key={clinic.id} value={clinic.id}>
-                  {clinic.nombre}
-                </MenuItem>
-              ))}
+              <MenuItem value="todos">Todos</MenuItem>
+              <MenuItem value="activo">Activo</MenuItem>
+              <MenuItem value="pendiente">Pendiente</MenuItem>
+              <MenuItem value="suspendido">Suspendido</MenuItem>
             </TextField>
-          )}
 
-          <Tooltip title="Configurar columnas">
-            <IconButton
-              onClick={() => setColumnsDialogOpen(true)}
-              sx={{
-                width: 44,
-                height: 44,
-                border: "1px solid",
-                borderColor: "divider",
-                borderRadius: 1.5,
-              }}
-            >
-              <SettingsOutlined fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        </Box>
+            {!lockedClinicId && (
+              <TextField
+                select
+                fullWidth
+                label="Clínica"
+                value={clinicFilter}
+                onChange={(e) =>
+                  setClinicFilter(e.target.value === "todas" ? "todas" : Number(e.target.value))
+                }
+              >
+                <MenuItem value="todas">Todas</MenuItem>
+                {clinics.map((clinic) => (
+                  <MenuItem key={clinic.id} value={clinic.id}>
+                    {clinic.nombre}
+                  </MenuItem>
+                ))}
+              </TextField>
+            )}
+
+            <Tooltip title="Seleccionar">
+              <IconButton
+                onClick={toggleSelectMode}
+                sx={{
+                  width: 44,
+                  height: 44,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 1.5,
+                }}
+              >
+                <CheckBoxOutlineBlank fontSize="small" />
+              </IconButton>
+            </Tooltip>
+
+            <Tooltip title="Configurar columnas">
+              <IconButton
+                onClick={() => setColumnsDialogOpen(true)}
+                sx={{
+                  width: 44,
+                  height: 44,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 1.5,
+                }}
+              >
+                <SettingsOutlined fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
         )} {/* end of normal toolbar */}
 
         <Box sx={{ width: "100%", minHeight: 420 }}>
@@ -1151,7 +1169,7 @@ export default function ProfesionalesPage() {
                     : "rgba(15,23,42,0.02)",
               },
               "& .row-selected": {
-                backgroundColor: "var(--color-background-info, #E3F2FD) !important",
+                backgroundColor: `${alpha(theme.palette.info.main, theme.palette.mode === "dark" ? 0.16 : 0.08)} !important`,
               },
               "& .MuiDataGrid-row:hover .row-actions": {
                 opacity: 1,
@@ -1192,13 +1210,13 @@ export default function ProfesionalesPage() {
         clinics={
           lockedClinicId
             ? [
-                {
-                  id: lockedClinicId,
-                  nombre:
-                    rows.find((row) => row.clinicaId === lockedClinicId)?.clinicaNombre ??
-                    "Mi clínica",
-                },
-              ]
+              {
+                id: lockedClinicId,
+                nombre:
+                  rows.find((row) => row.clinicaId === lockedClinicId)?.clinicaNombre ??
+                  "Mi clínica",
+              },
+            ]
             : clinics
         }
         lockClinicId={lockedClinicId}

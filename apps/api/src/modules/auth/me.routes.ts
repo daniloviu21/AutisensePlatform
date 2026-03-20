@@ -101,6 +101,54 @@ meRouter.patch("/mfa", requireMfa, async (req, res) => {
 });
 
 /**
+ * GET /me/profile
+ * Devuelve los datos de perfil editables del usuario autenticado.
+ */
+meRouter.get("/profile", async (req, res) => {
+  const userId = Number(req.user!.sub);
+  const role = req.user!.role;
+
+  try {
+    if (role === "profesional") {
+      const prof = await prisma.profesional.findFirst({
+        where: { id_usuario: userId },
+        select: {
+          nombre: true,
+          ap_paterno: true,
+          ap_materno: true,
+          telefono: true,
+          especialidad: true,
+          organizacion: true,
+          foto_url: true,
+        },
+      });
+      if (!prof) return res.status(404).json({ message: "Perfil profesional no encontrado" });
+      return res.json({ role: "profesional", ...prof });
+    }
+
+    if (role === "tutor") {
+      const tutor = await prisma.tutor.findFirst({
+        where: { id_usuario: userId },
+        select: {
+          nombre: true,
+          ap_paterno: true,
+          ap_materno: true,
+          telefono: true,
+        },
+      });
+      if (!tutor) return res.status(404).json({ message: "Perfil de tutor no encontrado" });
+      return res.json({ role: "tutor", ...tutor });
+    }
+
+    // super_admin / clinic_admin: no tienen perfil personal adicional
+    return res.json({ role, nombre: null, ap_paterno: null, ap_materno: null, telefono: null });
+  } catch (error) {
+    console.error("GET /me/profile error:", error);
+    return res.status(500).json({ message: "Error al obtener el perfil" });
+  }
+});
+
+/**
  * PATCH /me/profile
  * Permite a usuarios con perfiles (Profesional o Tutor) actualizar sus propios datos personales.
  */
@@ -110,31 +158,63 @@ meRouter.patch("/profile", async (req, res) => {
 
   try {
     if (role === "profesional") {
-      const { telefono } = req.body as { telefono?: string };
-      const telefonoClean = collapseSpaces(telefono ?? "");
+      const { nombre, ap_paterno, ap_materno, telefono, especialidad, organizacion } = req.body as {
+        nombre?: string;
+        ap_paterno?: string;
+        ap_materno?: string;
+        telefono?: string;
+        especialidad?: string;
+        organizacion?: string;
+      };
+
+      if (!nombre?.trim() || !ap_paterno?.trim()) {
+        return res.status(400).json({ message: "Nombre y apellido paterno son requeridos" });
+      }
 
       const prof = await prisma.profesional.findFirst({ where: { id_usuario: userId } });
       if (!prof) return res.status(404).json({ message: "Perfil profesional no encontrado" });
 
       const updated = await prisma.profesional.update({
         where: { id: prof.id },
-        data: { telefono: telefonoClean || null }
+        data: {
+          nombre: collapseSpaces(nombre),
+          ap_paterno: collapseSpaces(ap_paterno),
+          ap_materno: ap_materno ? collapseSpaces(ap_materno) : null,
+          telefono: telefono ? collapseSpaces(telefono) : null,
+          especialidad: especialidad ? collapseSpaces(especialidad) : prof.especialidad,
+          organizacion: organizacion ? collapseSpaces(organizacion) : null,
+        },
       });
-      return res.json(updated);
-    } 
-    
+
+      return res.json({ message: "Perfil actualizado correctamente", profile: updated });
+    }
+
     if (role === "tutor") {
-      const { telefono } = req.body as { telefono?: string };
-      const telefonoClean = collapseSpaces(telefono ?? "");
+      const { nombre, ap_paterno, ap_materno, telefono } = req.body as {
+        nombre?: string;
+        ap_paterno?: string;
+        ap_materno?: string;
+        telefono?: string;
+      };
+
+      if (!nombre?.trim() || !ap_paterno?.trim()) {
+        return res.status(400).json({ message: "Nombre y apellido paterno son requeridos" });
+      }
 
       const tutor = await prisma.tutor.findFirst({ where: { id_usuario: userId } });
       if (!tutor) return res.status(404).json({ message: "Perfil tutor no encontrado" });
 
       const updated = await prisma.tutor.update({
         where: { id: tutor.id },
-        data: { telefono: telefonoClean || null }
+        data: {
+          nombre: collapseSpaces(nombre),
+          ap_paterno: collapseSpaces(ap_paterno),
+          ap_materno: ap_materno ? collapseSpaces(ap_materno) : null,
+          telefono: telefono ? collapseSpaces(telefono) : null,
+        },
       });
-      return res.json(updated);
+
+      return res.json({ message: "Perfil actualizado correctamente", profile: updated });
     }
 
     return res.status(403).json({ message: "Rol sin perfil actualizable." });
