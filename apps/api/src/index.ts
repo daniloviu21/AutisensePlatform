@@ -3,6 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import dotenv from "dotenv";
+import swaggerUi from "swagger-ui-express";
 
 import { authRouter, purgeExpiredRefreshTokens, purgeExpiredMfaChallenges } from "./modules/auth/auth.routes";
 import { meRouter } from "./modules/auth/me.routes";
@@ -13,6 +14,7 @@ import { pacientesRouter } from "./modules/pacientes/pacientes.routes";
 import { tutoresRouter } from "./modules/tutores/tutores.routes";
 import { auditLogsRouter } from "./modules/audit/audit-logs.routes";
 import logger from "./utils/logger";
+import { swaggerSpec } from "./docs/swagger";
 
 dotenv.config();
 
@@ -35,6 +37,17 @@ app.use("/profesionales", profesionalesRouter);
 app.use("/pacientes", pacientesRouter);
 app.use("/tutores", tutoresRouter);
 app.use("/audit-logs", auditLogsRouter);
+
+// ─── Swagger API Docs (sin autenticación) ────────────────────────────────────
+app.use(
+  "/api-docs",
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec, {
+    customSiteTitle: "AutiSense API Docs",
+    swaggerOptions: { persistAuthorization: true },
+  })
+);
+app.get("/api-docs.json", (_req, res) => res.json(swaggerSpec));
 
 app.use((_req, res) => res.status(404).json({ message: "Not found" }));
 
