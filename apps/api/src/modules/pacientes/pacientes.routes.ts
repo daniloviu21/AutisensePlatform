@@ -3,6 +3,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { allowRoles, requireAuth } from "../../middlewares/auth";
 import { buildPacienteScope, getSafeClinicScope } from "../../utils/policies";
+import logger from "../../utils/logger";
+import { logAudit } from "../../utils/audit";
 
 export const pacientesRouter = Router();
 
@@ -98,7 +100,7 @@ pacientesRouter.get(
 
       return res.json({ page, pageSize, total, items: items.map(sanitizePaciente) });
     } catch (e) {
-      console.error("GET /pacientes error:", e);
+      logger.error("GET /pacientes error", { err: String(e) });
       return res.status(500).json({ message: "No se pudieron obtener los pacientes" });
     }
   }
@@ -210,9 +212,10 @@ pacientesRouter.post(
         include: { clinica: { select: { nombre: true } } },
       });
 
+      logAudit(prisma, { userId: Number(user.sub), userRole: user.role, action: "PACIENTE_CREATED", entity: "Paciente", entityId: created.id, detail: `${nombre} ${ap_paterno}`, ip: req.ip, statusCode: 201 });
       return res.status(201).json(sanitizePaciente(created));
     } catch (e) {
-      console.error("POST /pacientes error:", e);
+      logger.error("POST /pacientes error", { err: String(e) });
       return res.status(500).json({ message: "No se pudo crear el paciente" });
     }
   }
@@ -261,9 +264,10 @@ pacientesRouter.put(
         include: { clinica: { select: { nombre: true } } },
       });
 
+      logAudit(prisma, { userId: Number(user.sub), userRole: user.role, action: "PACIENTE_UPDATED", entity: "Paciente", entityId: id, ip: req.ip, statusCode: 200 });
       return res.json(sanitizePaciente(updated));
     } catch (e) {
-      console.error("PUT /pacientes/:id error:", e);
+      logger.error("PUT /pacientes/:id error", { err: String(e) });
       return res.status(500).json({ message: "No se pudo actualizar el paciente" });
     }
   }
@@ -295,9 +299,10 @@ pacientesRouter.patch(
         include: { clinica: { select: { nombre: true } } },
       });
 
+      logAudit(prisma, { userId: Number(req.user?.sub), userRole: req.user?.role, action: "PACIENTE_STATUS_CHANGED", entity: "Paciente", entityId: id, detail: `estado:${estado}`, ip: req.ip, statusCode: 200 });
       return res.json(sanitizePaciente(updated));
     } catch (e) {
-      console.error("PATCH /pacientes/:id/status error:", e);
+      logger.error("PATCH /pacientes/:id/status error", { err: String(e) });
       return res.status(500).json({ message: "No se pudo actualizar el estado" });
     }
   }
@@ -401,6 +406,7 @@ pacientesRouter.post(
         include: { usuario: { select: { id: true, correo: true, estado: true } } },
       });
 
+      logAudit(prisma, { userId: Number(req.user?.sub), userRole: req.user?.role, action: "PACIENTE_TUTOR_LINKED", entity: "Paciente", entityId: id, detail: `tutorId:${tutorUserId}`, ip: req.ip, statusCode: 201 });
       return res.status(201).json({
         id: link.id,
         id_usuario: link.id_usuario,
@@ -440,6 +446,8 @@ pacientesRouter.delete(
       if (!paciente) return res.status(404).json({ message: "Paciente no encontrado o fuera de tu alcance" });
 
       await prisma.tutorPaciente.delete({ where: { id: tutorId } });
+      
+      logAudit(prisma, { userId: Number(req.user?.sub), userRole: req.user?.role, action: "PACIENTE_TUTOR_UNLINKED", entity: "Paciente", entityId: id, detail: `tutorLink:${tutorId}`, ip: req.ip, statusCode: 200 });
       return res.json({ ok: true });
     } catch (e: any) {
       if (e?.code === "P2025") return res.status(404).json({ message: "Vínculo no encontrado" });

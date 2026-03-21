@@ -104,7 +104,7 @@ model MfaChallenge {
   @@index([userId])
 }
 
-// ─── NÚcleo clínico ───────────────────────────────────────────────────────────
+// ─── Núcleo clínico ───────────────────────────────────────────────────────────
 
 model Paciente {
   id                      Int             @id @default(autoincrement())
@@ -172,4 +172,24 @@ model Tutor {
   updatedAt    DateTime  @updatedAt
 
   @@index([id_clinica])
+}
+
+// ─── Audit / Logs ─────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int?
+  userEmail  String?
+  userRole   String?
+  action     String
+  entity     String?
+  entityId   Int?
+  detail     String?
+  ip         String?
+  statusCode Int?
+  createdAt  DateTime @default(now())
+
+  @@index([action])
+  @@index([userId])
+  @@index([createdAt])
 }

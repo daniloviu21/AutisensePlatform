@@ -13,6 +13,7 @@ import CambiarPasswordPage from "./pages/CambiarPasswordPage";
 import ProfesionalesPage from "./pages/ProfesionalesPage";
 import PacientesPage from "./pages/PacientesPage";
 import TutoresPage from "./pages/TutoresPage";
+import LogsPage from "./pages/LogsPage";
 
 function PlaceholderPage({ title }: { title: string }) {
   return <div style={{ padding: 24 }}>{title}</div>;
@@ -69,6 +70,15 @@ export function AppRouter() {
         element={
           <ProtectedRoute roles={["super_admin", "clinic_admin"]}>
             <PlaceholderPage title="Suscripciones" />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/logs"
+        element={
+          <ProtectedRoute roles={["super_admin"]}>
+            <LogsPage />
           </ProtectedRoute>
         }
       />

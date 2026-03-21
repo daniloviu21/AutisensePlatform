@@ -10,6 +10,8 @@ import {
 } from "../../utils/jwt";
 import { requireAuth } from "../../middlewares/auth";
 import { sendMfaCode } from "../../utils/mailer";
+import logger from "../../utils/logger";
+import { logAudit } from "../../utils/audit";
 
 export const authRouter = Router();
 
@@ -133,15 +135,18 @@ authRouter.post("/login", loginLimiter, async (req, res) => {
     });
 
     if (!user) {
+      logAudit(prisma, { action: "LOGIN_FAIL", userEmail: correoClean, detail: "usuario no encontrado", ip: req.ip, statusCode: 401 });
       return res.status(401).json({ message: "Credenciales inválidas" });
     }
 
     if (user.estado !== "activo") {
+      logAudit(prisma, { userId: user.id, userEmail: user.correo, userRole: user.rol.rol, action: "LOGIN_FAIL", detail: "usuario inactivo", ip: req.ip, statusCode: 403 });
       return res.status(403).json({ message: "Usuario no activo" });
     }
 
     const ok = await bcrypt.compare(password, user.password_hash);
     if (!ok) {
+      logAudit(prisma, { userId: user.id, userEmail: user.correo, userRole: user.rol.rol, action: "LOGIN_FAIL", detail: "contraseña incorrecta", ip: req.ip, statusCode: 401 });
       return res.status(401).json({ message: "Credenciales inválidas" });
     }
 
@@ -166,6 +171,7 @@ authRouter.post("/login", loginLimiter, async (req, res) => {
 
       const { challengeId, code } = await createMfaChallenge(user.id);
       await sendMfaCode(user.correo, code);
+      logAudit(prisma, { userId: user.id, userEmail: user.correo, userRole: user.rol.rol, action: "LOGIN_MFA_PENDING", ip: req.ip, statusCode: 200 });
       return res.json({ requiresMfa: true, challengeId });
     }
 
@@ -179,6 +185,7 @@ authRouter.post("/login", loginLimiter, async (req, res) => {
     const accessToken  = signAccessToken(payload);
     const refreshToken = signRefreshToken(payload);
     await saveRefreshToken(user.id, refreshToken);
+    logAudit(prisma, { userId: user.id, userEmail: user.correo, userRole: user.rol.rol, action: "LOGIN_OK", detail: "login sin MFA", ip: req.ip, statusCode: 200 });
 
     return res.json({
       accessToken,
@@ -193,7 +200,7 @@ authRouter.post("/login", loginLimiter, async (req, res) => {
       },
     });
   } catch (e: any) {
-    console.error("POST /auth/login error:", e?.message ?? e);
+    logger.error("POST /auth/login error", { err: e?.message ?? e });
     return res.status(500).json({
       message: "Error en base de datos",
       code: e?.code ?? null,
@@ -265,6 +272,7 @@ authRouter.post("/mfa/verify", mfaVerifyLimiter, async (req, res) => {
           where: { id: challengeId },
           data: { failedAttempts: newAttempts, lockedUntil: lockTime },
         });
+        logAudit(prisma, { userId: challenge.userId, action: "MFA_LOCKED", detail: `bloqueado tras ${newAttempts} intentos`, ip: req.ip, statusCode: 423 });
         return res.status(423).json({
           code: "LOCKED",
           message: "Demasiados intentos. Intenta nuevamente en 5 minutos.",
@@ -275,7 +283,7 @@ authRouter.post("/mfa/verify", mfaVerifyLimiter, async (req, res) => {
           where: { id: challengeId },
           data: { failedAttempts: newAttempts },
         });
-
+        logAudit(prisma, { userId: challenge.userId, action: "MFA_FAIL", detail: `intento ${newAttempts}/5`, ip: req.ip, statusCode: 401 });
         const remaining = 5 - newAttempts;
         return res.status(401).json({
           code: "INCORRECT_CODE",
@@ -306,6 +314,7 @@ authRouter.post("/mfa/verify", mfaVerifyLimiter, async (req, res) => {
     const accessToken  = signAccessToken(payload);
     const refreshToken = signRefreshToken(payload);
     await saveRefreshToken(user.id, refreshToken);
+    logAudit(prisma, { userId: user.id, userEmail: user.correo, userRole: user.rol.rol, action: "LOGIN_OK", detail: "login via MFA", ip: req.ip, statusCode: 200 });
 
     // Limpieza oportunista
     void purgeExpiredMfaChallenges();
@@ -323,7 +332,7 @@ authRouter.post("/mfa/verify", mfaVerifyLimiter, async (req, res) => {
       },
     });
   } catch (e: any) {
-    console.error("POST /auth/mfa/verify error:", e?.message ?? e);
+    logger.error("POST /auth/mfa/verify error", { err: e?.message ?? e });
     return res.status(500).json({ message: "Error al verificar el código" });
   }
 });
@@ -359,7 +368,7 @@ authRouter.post("/mfa/resend", mfaResendLimiter, async (req, res) => {
 
     return res.json({ challengeId: newChallengeId });
   } catch (e: any) {
-    console.error("POST /auth/mfa/resend error:", e?.message ?? e);
+    logger.error("POST /auth/mfa/resend error", { err: e?.message ?? e });
     return res.status(500).json({ message: "No se pudo reenviar el código" });
   }
 });
@@ -510,7 +519,7 @@ authRouter.post("/change-password", authActionLimiter, requireAuth, async (req, 
       },
     });
   } catch (error) {
-    console.error("POST /auth/change-password error:", error);
+    logger.error("POST /auth/change-password error", { err: String(error) });
     return res.status(500).json({ message: "No se pudo actualizar la contraseña" });
   }
 });

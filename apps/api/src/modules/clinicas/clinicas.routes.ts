@@ -2,6 +2,8 @@ import { Router } from "express";
 import { prisma } from "../../db/prisma";
 import { Prisma } from "@prisma/client";
 import { allowRoles, requireAuth } from "../../middlewares/auth";
+import logger from "../../utils/logger";
+import { logAudit } from "../../utils/audit";
 
 export const clinicasRouter = Router();
 
@@ -87,6 +89,7 @@ clinicasRouter.post("/", async (req, res) => {
     },
   });
 
+  logAudit(prisma, { userId: Number((req as any).user?.sub), userRole: (req as any).user?.role, action: "CLINICA_CREATED", entity: "Clinica", entityId: created.id, detail: `${created.nombre}`, ip: req.ip, statusCode: 201 });
   return res.status(201).json(created);
 });
 
@@ -102,6 +105,7 @@ clinicasRouter.put("/:id", async (req, res) => {
     data: { ...req.body },
   });
 
+  logAudit(prisma, { userId: Number((req as any).user?.sub), userRole: (req as any).user?.role, action: "CLINICA_UPDATED", entity: "Clinica", entityId: id, ip: req.ip, statusCode: 200 });
   return res.json(updated);
 });
 
@@ -117,5 +121,6 @@ clinicasRouter.delete("/:id", async (req, res) => {
     data: { estado: "suspendida" },
   });
 
+  logAudit(prisma, { userId: Number((req as any).user?.sub), userRole: (req as any).user?.role, action: "CLINICA_DELETED", entity: "Clinica", entityId: id, ip: req.ip, statusCode: 200 });
   return res.json(updated);
 });

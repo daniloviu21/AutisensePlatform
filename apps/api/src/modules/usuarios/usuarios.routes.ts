@@ -4,6 +4,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { allowRoles, requireAuth, requireMfa } from "../../middlewares/auth";
 import { buildUsuarioScope, getSafeClinicScope } from "../../utils/policies";
+import logger from "../../utils/logger";
+import { logAudit } from "../../utils/audit";
 
 export const usuariosRouter = Router();
 
@@ -121,7 +123,7 @@ usuariosRouter.get("/", async (req, res) => {
       items: items.map(sanitizeUserResponse),
     });
   } catch (error) {
-    console.error("GET /usuarios error:", error);
+    logger.error("GET /usuarios error", { err: String(error) });
     return res.status(500).json({ message: "No se pudieron obtener los usuarios" });
   }
 });
@@ -237,9 +239,10 @@ usuariosRouter.post("/", async (req, res) => {
       },
     });
 
+    logAudit(prisma, { userId: Number(req.user?.sub), userEmail: req.user?.sub, userRole: req.user?.role, action: "USER_CREATED", entity: "Usuario", entityId: created.id, detail: `correo:${created.correo} rol:${created.rol.rol}`, ip: req.ip, statusCode: 201 });
     return res.status(201).json(sanitizeUserResponse(created));
   } catch (error) {
-    console.error("POST /usuarios error:", error);
+    logger.error("POST /usuarios error", { err: String(error) });
     return res.status(500).json({ message: "No se pudo crear el usuario" });
   }
 });
@@ -383,9 +386,10 @@ usuariosRouter.put("/:id", async (req, res) => {
       },
     });
 
+    logAudit(prisma, { userId: Number(req.user?.sub), userRole: req.user?.role, action: "USER_UPDATED", entity: "Usuario", entityId: updated.id, detail: `correo:${updated.correo} estado:${updated.estado}`, ip: req.ip, statusCode: 200 });
     return res.json(sanitizeUserResponse(updated));
   } catch (error) {
-    console.error("PUT /usuarios/:id error:", error);
+    logger.error("PUT /usuarios/:id error", { err: String(error) });
     return res.status(500).json({ message: "No se pudo actualizar el usuario" });
   }
 });
@@ -428,9 +432,10 @@ usuariosRouter.patch("/:id/status", async (req, res) => {
       },
     });
 
+    logAudit(prisma, { userId: Number(req.user?.sub), userRole: req.user?.role, action: "USER_STATUS_CHANGED", entity: "Usuario", entityId: updated.id, detail: `estado:${estadoClean}`, ip: req.ip, statusCode: 200 });
     return res.json(sanitizeUserResponse(updated));
   } catch (error) {
-    console.error("PATCH /usuarios/:id/status error:", error);
+    logger.error("PATCH /usuarios/:id/status error", { err: String(error) });
     return res.status(500).json({ message: "No se pudo actualizar el estado" });
   }
 });
@@ -481,7 +486,7 @@ usuariosRouter.patch("/:id/mfa", async (req, res) => {
 
     return res.json(sanitizeUserResponse(updated));
   } catch (error) {
-    console.error("PATCH /usuarios/:id/mfa error:", error);
+    logger.error("PATCH /usuarios/:id/mfa error", { err: String(error) });
     return res.status(500).json({ message: "No se pudo actualizar el MFA" });
   }
 });

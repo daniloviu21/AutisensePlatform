@@ -7,6 +7,8 @@ import { allowRoles, requireAuth } from "../../middlewares/auth";
 import { upload } from "../../middlewares/upload";
 import { cloudinary } from "../../utils/cloudinary";
 import { buildProfesionalScope, getSafeClinicScope } from "../../utils/policies";
+import logger from "../../utils/logger";
+import { logAudit } from "../../utils/audit";
 
 export const profesionalesRouter = Router();
 
@@ -260,7 +262,7 @@ profesionalesRouter.get("/", requireAuth, allowRoles("super_admin", "clinic_admi
       items: items.map(sanitizeProfesionalResponse),
     });
   } catch (error) {
-    console.error("GET /profesionales error:", error);
+    logger.error("GET /profesionales error", { err: String(error) });
     return res.status(500).json({ message: "No se pudieron obtener los profesionales" });
   }
 });
@@ -411,9 +413,10 @@ profesionalesRouter.post("/", requireAuth, allowRoles("super_admin", "clinic_adm
       return profesional;
     });
 
+    logAudit(prisma, { userId: Number(req.user?.sub), userRole: req.user?.role, action: "PROFESIONAL_CREATED", entity: "Profesional", entityId: created.id, detail: `${created.nombre} ${created.ap_paterno} - ${created.especialidad}`, ip: req.ip, statusCode: 201 });
     return res.status(201).json(sanitizeProfesionalResponse(created));
   } catch (error) {
-    console.error("POST /profesionales error:", error);
+    logger.error("POST /profesionales error", { err: String(error) });
     return res.status(500).json({ message: "No se pudo crear el profesional" });
   }
 });
@@ -578,9 +581,10 @@ profesionalesRouter.put("/:id", requireAuth, allowRoles("super_admin", "clinic_a
       await destroyCloudinaryImage(existing.foto_public_id);
     }
 
+    logAudit(prisma, { userId: Number(req.user?.sub), userRole: req.user?.role, action: "PROFESIONAL_UPDATED", entity: "Profesional", entityId: id, ip: req.ip, statusCode: 200 });
     return res.json(sanitizeProfesionalResponse(updated));
   } catch (error) {
-    console.error("PUT /profesionales/:id error:", error);
+    logger.error("PUT /profesionales/:id error", { err: String(error) });
     return res.status(500).json({ message: "No se pudo actualizar el profesional" });
   }
 });
@@ -618,13 +622,14 @@ profesionalesRouter.patch("/:id/status", requireAuth, allowRoles("super_admin", 
       data: { estado },
     });
 
+    logAudit(prisma, { userId: Number(req.user?.sub), userRole: req.user?.role, action: "PROFESIONAL_STATUS_CHANGED", entity: "Profesional", entityId: id, detail: `estado:${estado}`, ip: req.ip, statusCode: 200 });
     return res.json({
       id: profesional.id,
       estado: updatedUser.estado,
       id_usuario: profesional.id_usuario,
     });
   } catch (error) {
-    console.error("PATCH /profesionales/:id/status error:", error);
+    logger.error("PATCH /profesionales/:id/status error", { err: String(error) });
     return res.status(500).json({ message: "No se pudo actualizar el estado" });
   }
 });

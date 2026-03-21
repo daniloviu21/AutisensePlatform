@@ -11,6 +11,8 @@ import { usuariosRouter } from "./modules/usuarios/usuarios.routes";
 import { profesionalesRouter } from "./modules/profesionales/profesionales.routes";
 import { pacientesRouter } from "./modules/pacientes/pacientes.routes";
 import { tutoresRouter } from "./modules/tutores/tutores.routes";
+import { auditLogsRouter } from "./modules/audit/audit-logs.routes";
+import logger from "./utils/logger";
 
 dotenv.config();
 
@@ -32,6 +34,7 @@ app.use("/usuarios", usuariosRouter);
 app.use("/profesionales", profesionalesRouter);
 app.use("/pacientes", pacientesRouter);
 app.use("/tutores", tutoresRouter);
+app.use("/audit-logs", auditLogsRouter);
 
 app.use((_req, res) => res.status(404).json({ message: "Not found" }));
 
@@ -45,15 +48,15 @@ app.use((error: any, _req: any, res: any, _next: any) => {
     return res.status(400).json({ message: "La imagen no debe exceder 5 MB." });
   }
 
-  console.error("Unhandled error:", error);
+  logger.error("Unhandled error", { err: String(error) });
   return res.status(500).json({ message: "Error interno del servidor" });
 });
 app.listen(port, () => {
-  console.log(`API running on http://localhost:${port}`);
+  logger.info(`API running on http://localhost:${port}`);
 
   // Limpieza inicial + periódica cada 6 h
-  void purgeExpiredRefreshTokens();
   void purgeExpiredMfaChallenges();
+  void purgeExpiredRefreshTokens();
   setInterval(() => {
     void purgeExpiredRefreshTokens();
     void purgeExpiredMfaChallenges();

@@ -3,6 +3,8 @@ import bcrypt from "bcrypt";
 import { prisma } from "../../db/prisma";
 import { allowRoles, requireAuth } from "../../middlewares/auth";
 import { buildTutorScope, getSafeClinicScope } from "../../utils/policies";
+import logger from "../../utils/logger";
+import { logAudit } from "../../utils/audit";
 
 export const tutoresRouter = Router();
 tutoresRouter.use(requireAuth);
@@ -333,6 +335,7 @@ tutoresRouter.post(
         });
       });
 
+      logAudit(prisma, { userId: Number(req.user?.sub), userRole: req.user?.role, action: "TUTOR_CREATED", entity: "Tutor", entityId: tutor.id, detail: `${tutor.nombre} ${tutor.ap_paterno}`, ip: req.ip, statusCode: 201 });
       return res.status(201).json(sanitizeTutor(tutor));
     } catch (error) {
       console.error("POST /tutores error:", error);
@@ -424,6 +427,7 @@ tutoresRouter.put(
         });
       });
 
+      logAudit(prisma, { userId: Number(req.user?.sub), userRole: req.user?.role, action: "TUTOR_UPDATED", entity: "Tutor", entityId: id, ip: req.ip, statusCode: 200 });
       return res.json(sanitizeTutor(updated));
     } catch (error) {
       console.error("PUT /tutores/:id error:", error);
@@ -476,6 +480,7 @@ tutoresRouter.patch(
         },
       });
 
+      logAudit(prisma, { userId: Number(req.user?.sub), userRole: req.user?.role, action: "TUTOR_STATUS_CHANGED", entity: "Tutor", entityId: id, detail: `estado:${estadoClean}`, ip: req.ip, statusCode: 200 });
       return res.json(sanitizeTutor(updated!));
     } catch (error) {
       console.error("PATCH /tutores/:id/status error:", error);
