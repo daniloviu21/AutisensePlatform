@@ -3,4 +3,4 @@ dist
 .env
 .env.*
 .DS_Store
-.vscode
+.vscodeapps/api/logs/
