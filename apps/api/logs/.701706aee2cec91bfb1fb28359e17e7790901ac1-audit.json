@@ -1,0 +1,20 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 30
+    },
+    "auditLog": "D:\\ProyectoTEA\\autisense-platform\\apps\\api\\logs\\.701706aee2cec91bfb1fb28359e17e7790901ac1-audit.json",
+    "files": [
+        {
+            "date": 1774242383877,
+            "name": "D:\\ProyectoTEA\\autisense-platform\\apps\\api\\logs\\error-2026-03-22.log",
+            "hash": "33c87add9e9531cb07ca62b55856c3875639d88e4cca52e25c5bc266694f8b1a"
+        },
+        {
+            "date": 1774246331812,
+            "name": "D:\\ProyectoTEA\\autisense-platform\\apps\\api\\logs\\error-2026-03-23.log",
+            "hash": "1317918bdad52e034c87d82908f12742e6ec41ae7220e210fe3cc68aa0af4e23"
+        }
+    ],
+    "hashType": "sha256"
+}

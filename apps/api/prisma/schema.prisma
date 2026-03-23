@@ -49,6 +49,7 @@ model Usuario {
   refreshTokens        RefreshToken[]
   mfaChallenges        MfaChallenge[]
   tutorPacientes       TutorPaciente[]
+  archivosSubidos      Archivo[]
 
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
@@ -71,6 +72,8 @@ model Profesional {
 
   foto_url       String?
   foto_public_id String?
+
+  encuentros     Encuentro[]
 
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -127,6 +130,8 @@ model Paciente {
   estado                  String          @default("activo") // activo, inactivo
 
   tutores                 TutorPaciente[]
+  encuentros              Encuentro[]
+  archivos                Archivo[]
 
   createdAt               DateTime        @default(now())
   updatedAt               DateTime        @updatedAt
@@ -186,10 +191,78 @@ model AuditLog {
   entityId   Int?
   detail     String?
   ip         String?
-  statusCode Int?
   createdAt  DateTime @default(now())
 
   @@index([action])
   @@index([userId])
   @@index([createdAt])
+}
+
+// ─── Análisis / Multimedia ────────────────────────────────────────────────────
+
+model Encuentro {
+  id               Int         @id @default(autoincrement())
+  id_paciente      Int
+  paciente         Paciente    @relation(fields: [id_paciente], references: [id])
+  id_profesional   Int
+  profesional      Profesional @relation(fields: [id_profesional], references: [id])
+
+  tipo_encuentro   String
+  fecha            DateTime    @db.Date
+  motivo           String
+  resumen          String?
+  estado           String      @default("completado")
+
+  archivos         Archivo[]
+
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([id_paciente])
+  @@index([id_profesional])
+}
+
+model Archivo {
+  id               Int         @id @default(autoincrement())
+  id_paciente      Int
+  paciente         Paciente    @relation(fields: [id_paciente], references: [id])
+  id_encuentro     Int?
+  encuentro        Encuentro?  @relation(fields: [id_encuentro], references: [id])
+
+  nombre_archivo   String
+  tipo_mime        String
+  tamano_bytes     Int
+  url_placeholder  String?
+  descripcion      String?
+  
+  subido_por_id    Int
+  usuario          Usuario     @relation(fields: [subido_por_id], references: [id])
+
+  analisis         AnalisisIA?
+
+  createdAt        DateTime    @default(now())
+
+  @@index([id_paciente])
+  @@index([id_encuentro])
+  @@index([subido_por_id])
+}
+
+model AnalisisIA {
+  id               Int      @id @default(autoincrement())
+  id_archivo       Int      @unique
+  archivo          Archivo  @relation(fields: [id_archivo], references: [id])
+
+  estado           String   @default("completado")
+  score            Float?
+  clasificacion    String?
+  confianza        Float?
+  
+  modelo           String?  @default("mock")
+  modelo_version   String?  @default("sim-v1")
+  error_msg        String?
+
+  observaciones    String?  @db.Text
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }

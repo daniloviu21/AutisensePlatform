@@ -30,6 +30,8 @@ import {
   AccountCircleOutlined,
   LockOutlined,
   SecurityOutlined,
+  AnalyticsOutlined,
+  FactCheckOutlined,
 } from "@mui/icons-material";
 import { useMemo, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
@@ -76,6 +78,8 @@ export default function AdminLayout({
       { label: "Pacientes", path: "/pacientes", icon: <Groups2Outlined />, roles: ["super_admin", "clinic_admin", "profesional"] },
       { label: "Suscripciones", path: "/suscripciones", icon: <ReceiptLongOutlined />, roles: ["super_admin", "clinic_admin"] },
       { label: "Logs", path: "/logs", icon: <SecurityOutlined />, roles: ["super_admin"] },
+      { label: "Análisis", path: "/analisis", icon: <AnalyticsOutlined />, roles: ["profesional"] },
+      { label: "Resultados", path: "/resultados", icon: <FactCheckOutlined />, roles: ["profesional"] },
     ];
     
     if (!user) return [];

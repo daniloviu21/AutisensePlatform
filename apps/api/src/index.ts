@@ -13,6 +13,7 @@ import { profesionalesRouter } from "./modules/profesionales/profesionales.route
 import { pacientesRouter } from "./modules/pacientes/pacientes.routes";
 import { tutoresRouter } from "./modules/tutores/tutores.routes";
 import { auditLogsRouter } from "./modules/audit/audit-logs.routes";
+import { analisisRouter } from "./modules/analisis/analisis.routes";
 import logger from "./utils/logger";
 import { swaggerSpec } from "./docs/swagger";
 
@@ -43,6 +44,7 @@ app.use("/profesionales", profesionalesRouter);
 app.use("/pacientes", pacientesRouter);
 app.use("/tutores", tutoresRouter);
 app.use("/audit-logs", auditLogsRouter);
+app.use("/analisis", analisisRouter);
 
 // ─── Swagger API Docs (sin autenticación) ────────────────────────────────────
 app.use(

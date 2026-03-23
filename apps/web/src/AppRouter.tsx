@@ -14,6 +14,9 @@ import ProfesionalesPage from "./pages/ProfesionalesPage";
 import PacientesPage from "./pages/PacientesPage";
 import TutoresPage from "./pages/TutoresPage";
 import LogsPage from "./pages/LogsPage";
+import AnalisisPage from "./pages/AnalisisPage";
+import ResultadosPage from "./pages/ResultadosPage";
+import ResultadoDetailPage from "./pages/ResultadoDetailPage";
 
 function PlaceholderPage({ title }: { title: string }) {
   return <div style={{ padding: 24 }}>{title}</div>;
@@ -106,6 +109,33 @@ export function AppRouter() {
         element={
           <ProtectedRoute roles={["super_admin", "clinic_admin", "profesional"]}>
             <PacientesPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/analisis"
+        element={
+          <ProtectedRoute roles={["profesional"]}>
+            <AnalisisPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/resultados"
+        element={
+          <ProtectedRoute roles={["profesional"]}>
+            <ResultadosPage />
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/resultados/:id"
+        element={
+          <ProtectedRoute roles={["profesional"]}>
+            <ResultadoDetailPage />
           </ProtectedRoute>
         }
       />
