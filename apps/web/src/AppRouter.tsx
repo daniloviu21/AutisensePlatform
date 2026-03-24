@@ -50,20 +50,20 @@ export function AppRouter() {
         }
       />
 
-      {/* super_admin + clinic_admin */}
+      {/* super_admin only */}
       <Route
         path="/clinicas"
         element={
-          <ProtectedRoute roles={["super_admin", "clinic_admin"]}>
+          <ProtectedRoute roles={["super_admin"]}>
             <ClinicasPage />
           </ProtectedRoute>
         }
       />
-      {/* super_admin + clinic_admin */}
+      {/* super_admin only */}
       <Route
         path="/usuarios"
         element={
-          <ProtectedRoute roles={["super_admin", "clinic_admin"]}>
+          <ProtectedRoute roles={["super_admin"]}>
             <UsuariosPage />
           </ProtectedRoute>
         }
@@ -116,7 +116,7 @@ export function AppRouter() {
       <Route
         path="/analisis"
         element={
-          <ProtectedRoute roles={["profesional"]}>
+          <ProtectedRoute roles={["profesional", "clinic_admin"]}>
             <AnalisisPage />
           </ProtectedRoute>
         }
@@ -125,7 +125,7 @@ export function AppRouter() {
       <Route
         path="/resultados"
         element={
-          <ProtectedRoute roles={["profesional"]}>
+          <ProtectedRoute roles={["profesional", "clinic_admin"]}>
             <ResultadosPage />
           </ProtectedRoute>
         }
@@ -134,7 +134,7 @@ export function AppRouter() {
       <Route
         path="/resultados/:id"
         element={
-          <ProtectedRoute roles={["profesional"]}>
+          <ProtectedRoute roles={["profesional", "clinic_admin"]}>
             <ResultadoDetailPage />
           </ProtectedRoute>
         }

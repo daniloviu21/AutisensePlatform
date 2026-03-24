@@ -71,15 +71,15 @@ export default function AdminLayout({
   const navItems = useMemo<NavItem[]>(() => {
     const rawItems: NavItem[] = [
       { label: "Dashboard", path: "/dashboard", icon: <DashboardOutlined />, roles: ["super_admin", "clinic_admin", "profesional", "tutor"] },
-      { label: "Clínicas", path: "/clinicas", icon: <ApartmentOutlined />, roles: ["super_admin", "clinic_admin"] },
-      { label: "Usuarios", path: "/usuarios", icon: <PeopleAltOutlined />, roles: ["super_admin", "clinic_admin"] },
+      { label: "Clínicas", path: "/clinicas", icon: <ApartmentOutlined />, roles: ["super_admin"] },
+      { label: "Usuarios", path: "/usuarios", icon: <PeopleAltOutlined />, roles: ["super_admin"] },
       { label: "Profesionales", path: "/profesionales", icon: <PsychologyAltOutlined />, roles: ["super_admin", "clinic_admin"] },
       { label: "Tutores", path: "/tutores", icon: <PersonOutlineOutlined />, roles: ["super_admin", "clinic_admin", "profesional"] },
       { label: "Pacientes", path: "/pacientes", icon: <Groups2Outlined />, roles: ["super_admin", "clinic_admin", "profesional"] },
       { label: "Suscripciones", path: "/suscripciones", icon: <ReceiptLongOutlined />, roles: ["super_admin", "clinic_admin"] },
       { label: "Logs", path: "/logs", icon: <SecurityOutlined />, roles: ["super_admin"] },
-      { label: "Análisis", path: "/analisis", icon: <AnalyticsOutlined />, roles: ["profesional"] },
-      { label: "Resultados", path: "/resultados", icon: <FactCheckOutlined />, roles: ["profesional"] },
+      { label: "Análisis", path: "/analisis", icon: <AnalyticsOutlined />, roles: ["profesional", "clinic_admin"] },
+      { label: "Resultados", path: "/resultados", icon: <FactCheckOutlined />, roles: ["profesional", "clinic_admin"] },
     ];
     
     if (!user) return [];

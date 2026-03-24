@@ -13,7 +13,9 @@ import {
   Alert,
   Chip,
   IconButton,
-  Button
+  Button,
+  Autocomplete,
+  TextField,
 } from "@mui/material";
 import { PersonOutline, ScienceOutlined, VisibilityOutlined } from "@mui/icons-material";
 import { DataGrid, type GridColDef, type GridRenderCellParams } from "@mui/x-data-grid";
@@ -52,23 +54,30 @@ export default function ResultadosPage() {
   const [loadingHistorial, setLoadingHistorial] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Load patients on mount
+  const [inputValue, setInputValue] = useState("");
+  const [selectedOption, setSelectedOption] = useState<PacienteOption | null>(null);
+
+  // Load patients on mount and when typing (debounced)
   useEffect(() => {
-    async function fetchPacientes() {
-      try {
-        setLoadingPacientes(true);
-        const res = await http.get("/pacientes", {
-          params: { page: 1, pageSize: 100, estado: "activo" },
-        });
-        setPacientes(res.data.items || []);
-      } catch (err) {
-        console.error("Error loading pacientes:", err);
-      } finally {
-        setLoadingPacientes(false);
+    const handler = setTimeout(() => {
+      async function fetchPacientes() {
+        try {
+          setLoadingPacientes(true);
+          const res = await http.get("/pacientes", {
+            params: { page: 1, pageSize: 50, estado: "activo", q: inputValue },
+          });
+          setPacientes(res.data.items || []);
+        } catch (err) {
+          console.error("Error loading pacientes:", err);
+        } finally {
+          setLoadingPacientes(false);
+        }
       }
-    }
-    fetchPacientes();
-  }, []);
+      fetchPacientes();
+    }, 400);
+
+    return () => clearTimeout(handler);
+  }, [inputValue]);
 
   // Fetch history when patient changes
   useEffect(() => {
@@ -130,15 +139,15 @@ export default function ResultadosPage() {
       headerName: "Clasificación",
       width: 160,
       disableColumnMenu: true,
-      renderCell: (params) => {
+      renderCell: (params: GridRenderCellParams<AnalisisHistorialInfo>) => {
         const val = params.row.clasificacion;
         if (!val) return "-";
-
-        let color: "default" | "success" | "warning" | "error" = "default";
+        
+        let color: "error" | "warning" | "success" | "default" = "default";
         if (val.toLowerCase().includes("alto")) color = "error";
-        else if (val.toLowerCase().includes("moderado") || val.toLowerCase().includes("medio")) color = "warning";
-        else if (val.toLowerCase().includes("bajo")) color = "success";
-
+        else if (val.toLowerCase().includes("moderado")) color = "warning";
+        else if (val.toLowerCase().includes("bajo") || val.toLowerCase().includes("normal")) color = "success";
+        
         return <Chip label={val} color={color} size="small" variant="outlined" />;
       }
     },
@@ -202,23 +211,45 @@ export default function ResultadosPage() {
               </Typography>
 
               <FormControl sx={{ flex: 1, maxWidth: 400 }} size="small">
-                <InputLabel id="paciente-select-lbl">Seleccione un paciente</InputLabel>
-                <Select
-                  labelId="paciente-select-lbl"
-                  label="Seleccione un paciente"
-                  value={selectedPacienteId}
-                  onChange={(e) => setSelectedPacienteId(e.target.value as number)}
-                  startAdornment={loadingPacientes ? <CircularProgress size={16} sx={{ mr: 1, ml: 1 }} /> : <PersonOutline sx={{ mr: 1, ml: 1, color: "text.secondary", fontSize: 20 }} />}
-                >
-                  <MenuItem value="">
-                    <em>Ver todos (requiere paciente para ver historial)</em>
-                  </MenuItem>
-                  {pacientes.map((p) => (
-                    <MenuItem key={p.id} value={p.id}>
-                      {p.nombre} {p.ap_paterno}
-                    </MenuItem>
-                  ))}
-                </Select>
+                <Autocomplete<PacienteOption>
+                  options={pacientes}
+                  getOptionLabel={(option: PacienteOption) => `${option.nombre} ${option.ap_paterno}`}
+                  value={selectedOption}
+                  onChange={(_: any, newValue: PacienteOption | null) => {
+                    setSelectedOption(newValue);
+                    setSelectedPacienteId(newValue ? newValue.id : "");
+                  }}
+                  inputValue={inputValue}
+                  onInputChange={(_: any, newInputValue: string) => {
+                    setInputValue(newInputValue);
+                  }}
+                  loading={loadingPacientes}
+                  noOptionsText="No se encontraron pacientes"
+                  filterOptions={(x: PacienteOption[]) => x} // Disable local filtering
+                  isOptionEqualToValue={(option: PacienteOption, val: PacienteOption) => option.id === val.id}
+                  renderInput={(params: any) => (
+                    <TextField
+                      {...params}
+                      label="Buscar paciente..."
+                      size="small"
+                      InputProps={{
+                        ...params.InputProps,
+                        startAdornment: (
+                          <>
+                            <PersonOutline sx={{ ml: 1, mr: 0.5, color: "text.secondary", fontSize: 20 }} />
+                            {params.InputProps.startAdornment}
+                          </>
+                        ),
+                        endAdornment: (
+                          <>
+                            {loadingPacientes ? <CircularProgress color="inherit" size={16} /> : null}
+                            {params.InputProps.endAdornment}
+                          </>
+                        ),
+                      }}
+                    />
+                  )}
+                />
               </FormControl>
             </Stack>
 

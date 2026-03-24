@@ -4,9 +4,9 @@ import { simularAnalisis, getHistorialAnalisis, getAnalisisById, guardarObservac
 
 const router = Router();
 
-// Only professionals can access this module
+// Only professionals and clinic admins can access this module
 router.use(requireAuth);
-router.use(allowRoles("profesional"));
+router.use(allowRoles("profesional", "clinic_admin"));
 
 // 1. Save simulated analysis result
 router.post("/simular", simularAnalisis);

@@ -11,6 +11,7 @@ import {
   TextField,
   Typography,
   CircularProgress,
+  Autocomplete,
 } from "@mui/material";
 import { PersonOutline, EventNoteOutlined } from "@mui/icons-material";
 import { http } from "../../api/http";
@@ -38,23 +39,29 @@ export default function AnalisisEncuentroForm({ value, onChange }: Props) {
   const [pacientes, setPacientes] = useState<PacienteOption[]>([]);
   const [loading, setLoading] = useState(false);
 
+  const [selectedOption, setSelectedOption] = useState<PacienteOption | null>(null);
+  const [inputValue, setInputValue] = useState("");
+
   useEffect(() => {
-    async function loadPacientes() {
-      try {
-        setLoading(true);
-        // Fetch only active patients, up to 100 for the selector
-        const res = await http.get("/pacientes", {
-          params: { page: 1, pageSize: 100, estado: "activo" },
-        });
-        setPacientes(res.data.items || []);
-      } catch (err) {
-        console.error("Error cargando pacientes", err);
-      } finally {
-        setLoading(false);
+    const handler = setTimeout(() => {
+      async function loadPacientes() {
+        try {
+          setLoading(true);
+          const res = await http.get("/pacientes", {
+            params: { page: 1, pageSize: 50, estado: "activo", q: inputValue },
+          });
+          setPacientes(res.data.items || []);
+        } catch (err) {
+          console.error("Error cargando pacientes", err);
+        } finally {
+          setLoading(false);
+        }
       }
-    }
-    loadPacientes();
-  }, []);
+      loadPacientes();
+    }, 400);
+
+    return () => clearTimeout(handler);
+  }, [inputValue]);
 
   const handleChange = (field: keyof EncuentroData, val: string | number) => {
     onChange({ ...value, [field]: val });
@@ -71,26 +78,45 @@ export default function AnalisisEncuentroForm({ value, onChange }: Props) {
         </Stack>
 
         <Stack spacing={3}>
-          <FormControl fullWidth required>
-            <InputLabel id="paciente-lbl">Paciente</InputLabel>
-            <Select
-              labelId="paciente-lbl"
-              label="Paciente"
-              value={value.pacienteId}
-              onChange={(e) => handleChange("pacienteId", e.target.value)}
-              startAdornment={loading ? <CircularProgress size={20} sx={{ mr: 1, ml: 1 }} /> : <PersonOutline sx={{ mr: 1, ml: 1, color: "text.secondary" }} />}
-            >
-              {pacientes.map((p) => (
-                <MenuItem key={p.id} value={p.id}>
-                  {p.nombre} {p.ap_paterno}
-                </MenuItem>
-              ))}
-              {pacientes.length === 0 && !loading && (
-                <MenuItem disabled value="">
-                  No hay pacientes activos
-                </MenuItem>
+          <FormControl fullWidth>
+            <Autocomplete<PacienteOption>
+              options={pacientes}
+              getOptionLabel={(option: PacienteOption) => `${option.nombre} ${option.ap_paterno}`}
+              value={selectedOption}
+              onChange={(_: any, newValue: PacienteOption | null) => {
+                setSelectedOption(newValue);
+                handleChange("pacienteId", newValue ? newValue.id : "");
+              }}
+              inputValue={inputValue}
+              onInputChange={(_: any, newInputValue: string) => {
+                setInputValue(newInputValue);
+              }}
+              loading={loading}
+              noOptionsText="No se encontraron pacientes"
+              filterOptions={(x: PacienteOption[]) => x} // Disable local filtering, rely on backend
+              isOptionEqualToValue={(option: PacienteOption, val: PacienteOption) => option.id === val.id}
+              renderInput={(params: any) => (
+                <TextField
+                  {...params}
+                  label="Paciente *"
+                  InputProps={{
+                    ...params.InputProps,
+                    startAdornment: (
+                      <>
+                        <PersonOutline sx={{ ml: 1, mr: 0.5, color: "text.secondary" }} />
+                        {params.InputProps.startAdornment}
+                      </>
+                    ),
+                    endAdornment: (
+                      <>
+                        {loading ? <CircularProgress color="inherit" size={20} /> : null}
+                        {params.InputProps.endAdornment}
+                      </>
+                    ),
+                  }}
+                />
               )}
-            </Select>
+            />
           </FormControl>
 
           <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>

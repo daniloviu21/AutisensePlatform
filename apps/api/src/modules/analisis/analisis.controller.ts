@@ -14,20 +14,48 @@ export const simularAnalisis = async (req: Request, res: Response): Promise<void
     }
     const userId = Number(userIdSub);
 
-    const profesional = await prisma.profesional.findUnique({
-      where: { id_usuario: userId }
+    const usuario = await prisma.usuario.findUnique({
+      where: { id: userId },
+      include: { profesional: true, rol: true }
     });
 
-    if (!profesional) {
-      res.status(403).json({ message: "El usuario no es un profesional registrado." });
+    if (!usuario) {
+      res.status(401).json({ message: "Usuario no encontrado" });
       return;
+    }
+
+    const esClinicAdmin = usuario.rol.rol === "clinic_admin";
+    const esProfesional = usuario.rol.rol === "profesional";
+
+    if (!esClinicAdmin && !esProfesional) {
+      res.status(403).json({ message: "No tienes permiso para realizar esta acción." });
+      return;
+    }
+
+    const idClinica = esClinicAdmin ? usuario.id_clinica : usuario.profesional?.id_clinica;
+    if (!idClinica) {
+      res.status(403).json({ message: "Usuario no asociado a ninguna clínica." });
+      return;
+    }
+
+    // Determine profesional ID for Encuentro
+    let idProfesionalParaEncuentro: number;
+    if (esProfesional && usuario.profesional) {
+      idProfesionalParaEncuentro = usuario.profesional.id;
+    } else {
+      const unProf = await prisma.profesional.findFirst({ where: { id_clinica: idClinica } });
+      if (!unProf) {
+        res.status(400).json({ message: "No existen profesionales en esta clínica para crear el análisis." });
+        return;
+      }
+      idProfesionalParaEncuentro = unProf.id;
     }
 
     // Validate the patient belongs to the professional's clinic
     const paciente = await prisma.paciente.findFirst({
       where: {
         id: Number(pacienteId),
-        id_clinica: profesional.id_clinica,
+        id_clinica: idClinica,
       }
     });
 
@@ -45,7 +73,7 @@ export const simularAnalisis = async (req: Request, res: Response): Promise<void
       const encuentro = await tx.encuentro.create({
         data: {
           id_paciente: paciente.id,
-          id_profesional: profesional.id,
+          id_profesional: idProfesionalParaEncuentro,
           tipo_encuentro: tipoEncuentro,
           fecha: fechaDate,
           motivo: motivo,
@@ -112,12 +140,27 @@ export const getHistorialAnalisis = async (req: Request, res: Response): Promise
     }
     const userId = Number(userIdSub);
 
-    const profesional = await prisma.profesional.findUnique({
-      where: { id_usuario: userId }
+    const usuario = await prisma.usuario.findUnique({
+      where: { id: userId },
+      include: { profesional: true, rol: true }
     });
 
-    if (!profesional) {
-      res.status(403).json({ message: "No tienes perfil de profesional." });
+    if (!usuario) {
+      res.status(401).json({ message: "Usuario no encontrado" });
+      return;
+    }
+
+    const esClinicAdmin = usuario.rol.rol === "clinic_admin";
+    const esProfesional = usuario.rol.rol === "profesional";
+
+    if (!esClinicAdmin && !esProfesional) {
+      res.status(403).json({ message: "No tienes permiso para realizar esta acción." });
+      return;
+    }
+
+    const idClinica = esClinicAdmin ? usuario.id_clinica : usuario.profesional?.id_clinica;
+    if (!idClinica) {
+      res.status(403).json({ message: "Usuario no asociado a ninguna clínica." });
       return;
     }
 
@@ -126,7 +169,7 @@ export const getHistorialAnalisis = async (req: Request, res: Response): Promise
       // Must belong to the clinic
       archivo: {
         paciente: {
-          id_clinica: profesional.id_clinica
+          id_clinica: idClinica
         }
       }
     };
@@ -173,12 +216,27 @@ export const getAnalisisById = async (req: Request, res: Response): Promise<void
     }
     const userId = Number(userIdSub);
 
-    const profesional = await prisma.profesional.findUnique({
-      where: { id_usuario: userId }
+    const usuario = await prisma.usuario.findUnique({
+      where: { id: userId },
+      include: { profesional: true, rol: true }
     });
 
-    if (!profesional) {
-      res.status(403).json({ message: "No tienes perfil de profesional." });
+    if (!usuario) {
+      res.status(401).json({ message: "Usuario no encontrado" });
+      return;
+    }
+
+    const esClinicAdmin = usuario.rol.rol === "clinic_admin";
+    const esProfesional = usuario.rol.rol === "profesional";
+
+    if (!esClinicAdmin && !esProfesional) {
+      res.status(403).json({ message: "No tienes permiso para realizar esta acción." });
+      return;
+    }
+
+    const idClinica = esClinicAdmin ? usuario.id_clinica : usuario.profesional?.id_clinica;
+    if (!idClinica) {
+      res.status(403).json({ message: "Usuario no asociado a ninguna clínica." });
       return;
     }
 
@@ -206,7 +264,7 @@ export const getAnalisisById = async (req: Request, res: Response): Promise<void
     }
 
     // Auth Validation: Check if the patient belongs to the professional's clinic
-    if (analisis.archivo.paciente.id_clinica !== profesional.id_clinica) {
+    if (analisis.archivo.paciente.id_clinica !== idClinica) {
       res.status(403).json({ message: "Acceso no autorizado a este análisis." });
       return;
     }
@@ -231,12 +289,27 @@ export const guardarObservaciones = async (req: Request, res: Response): Promise
     }
     const userId = Number(userIdSub);
 
-    const profesional = await prisma.profesional.findUnique({
-      where: { id_usuario: userId }
+    const usuario = await prisma.usuario.findUnique({
+      where: { id: userId },
+      include: { profesional: true, rol: true }
     });
 
-    if (!profesional) {
-      res.status(403).json({ message: "No tienes perfil de profesional." });
+    if (!usuario) {
+      res.status(401).json({ message: "Usuario no encontrado" });
+      return;
+    }
+
+    const esClinicAdmin = usuario.rol.rol === "clinic_admin";
+    const esProfesional = usuario.rol.rol === "profesional";
+
+    if (!esClinicAdmin && !esProfesional) {
+      res.status(403).json({ message: "No tienes permiso para realizar esta acción." });
+      return;
+    }
+
+    const idClinica = esClinicAdmin ? usuario.id_clinica : usuario.profesional?.id_clinica;
+    if (!idClinica) {
+      res.status(403).json({ message: "Usuario no asociado a ninguna clínica." });
       return;
     }
 
@@ -256,7 +329,7 @@ export const guardarObservaciones = async (req: Request, res: Response): Promise
       return;
     }
 
-    if (analisis.archivo.paciente.id_clinica !== profesional.id_clinica) {
+    if (analisis.archivo.paciente.id_clinica !== idClinica) {
       res.status(403).json({ message: "Acceso no autorizado a este análisis." });
       return;
     }
