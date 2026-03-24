@@ -17,6 +17,13 @@ import LogsPage from "./pages/LogsPage";
 import AnalisisPage from "./pages/AnalisisPage";
 import ResultadosPage from "./pages/ResultadosPage";
 import ResultadoDetailPage from "./pages/ResultadoDetailPage";
+import SuscripcionDetailPage from "./pages/SuscripcionDetailPage";
+import SuscripcionesAdminPage from "./pages/SuscripcionesAdminPage";
+
+import PublicLayout from "./layout/PublicLayout";
+import PlanesPage from "./pages/public/PlanesPage";
+import CheckoutPage from "./pages/public/CheckoutPage";
+import RegistroClinicaPublicoPage from "./pages/public/RegistroClinicaPublicoPage";
 
 function PlaceholderPage({ title }: { title: string }) {
   return <div style={{ padding: 24 }}>{title}</div>;
@@ -29,6 +36,13 @@ export function AppRouter() {
       <Route path="/" element={<SplashPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/mfa" element={<MfaPage />} />
+
+      {/* Flujo de Onboarding Público */}
+      <Route element={<PublicLayout />}>
+        <Route path="/planes" element={<PlanesPage />} />
+        <Route path="/checkout" element={<CheckoutPage />} />
+        <Route path="/registro-clinica" element={<RegistroClinicaPublicoPage />} />
+      </Route>
 
       {/* Cambio de contraseña obligatorio */}
       <Route
@@ -68,14 +82,22 @@ export function AppRouter() {
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/suscripciones"
-        element={
-          <ProtectedRoute roles={["super_admin", "clinic_admin"]}>
-            <PlaceholderPage title="Suscripciones" />
-          </ProtectedRoute>
-        }
-      />
+        <Route
+          path="/suscripcion"
+          element={
+            <ProtectedRoute roles={["clinic_admin"]}>
+              <SuscripcionDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/suscripciones/admin"
+          element={
+            <ProtectedRoute roles={["super_admin"]}>
+              <SuscripcionesAdminPage />
+            </ProtectedRoute>
+          }
+        />
 
       <Route
         path="/logs"

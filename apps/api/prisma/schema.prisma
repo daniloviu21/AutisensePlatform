@@ -26,6 +26,7 @@ model Clinica {
   profesionales    Profesional[]
   tutores          Tutor[]
   pacientes        Paciente[]
+  suscripciones    Suscripcion[]
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 }
@@ -265,4 +266,62 @@ model AnalisisIA {
 
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+}
+
+model Suscripcion {
+  id            Int       @id @default(autoincrement())
+  id_clinica    Int
+  clinica       Clinica   @relation(fields: [id_clinica], references: [id])
+
+  plan_nombre   String    // mensual, anual, etc.
+  monto         Float
+  moneda        String    @default("MXN")
+  estado        String    @default("activa") // activa, expirada, cancelada
+
+  fecha_inicio  DateTime  @default(now())
+  fecha_fin     DateTime
+  auto_renovar  Boolean   @default(false)
+
+  pagos         Pago[]
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([id_clinica])
+}
+
+model Pago {
+  id               Int          @id @default(autoincrement())
+  id_suscripcion   Int
+  suscripcion      Suscripcion  @relation(fields: [id_suscripcion], references: [id])
+
+  monto            Float
+  moneda           String       @default("MXN")
+  metodo           String       // tarjeta, paypal
+  estado           String       @default("pagado") // pagado, fallido, pendiente, reembolsado
+  fecha_pago       DateTime     @default(now())
+
+  createdAt        DateTime     @default(now())
+
+  @@index([id_suscripcion])
+}
+
+model CheckoutSession {
+  id                String    @id @default(cuid())
+  token             String    @unique // token aleatorio para la URL
+  plan_nombre       String
+  monto             Float
+  moneda            String    @default("MXN")
+  metodo            String?
+  estado            String    @default("pendiente") // pendiente, pagado, cancelado, expirado, consumido
+  
+  email_provisional String?
+  
+  expires_at        DateTime
+  consumed_at       DateTime?
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([token])
 }

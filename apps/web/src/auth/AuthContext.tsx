@@ -29,6 +29,7 @@ type AuthState = {
   setUser: React.Dispatch<React.SetStateAction<User | null>>;
   login: (correo: string, password: string) => Promise<LoginResult>;
   logout: () => Promise<void>;
+  completeMfaLogin: (data: { accessToken: string; refreshToken: string; user: User }) => void;
 };
 
 const AuthContext = createContext<AuthState | null>(null);

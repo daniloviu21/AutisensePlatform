@@ -14,6 +14,8 @@ import { pacientesRouter } from "./modules/pacientes/pacientes.routes";
 import { tutoresRouter } from "./modules/tutores/tutores.routes";
 import { auditLogsRouter } from "./modules/audit/audit-logs.routes";
 import { analisisRouter } from "./modules/analisis/analisis.routes";
+import { checkoutRouter } from "./modules/checkout/checkout.routes";
+import { suscripcionesRouter } from "./modules/suscripciones/suscripciones.routes";
 import logger from "./utils/logger";
 import { swaggerSpec } from "./docs/swagger";
 
@@ -45,6 +47,8 @@ app.use("/pacientes", pacientesRouter);
 app.use("/tutores", tutoresRouter);
 app.use("/audit-logs", auditLogsRouter);
 app.use("/analisis", analisisRouter);
+app.use("/checkout", checkoutRouter);
+app.use("/suscripciones", suscripcionesRouter);
 
 // ─── Swagger API Docs (sin autenticación) ────────────────────────────────────
 app.use(
