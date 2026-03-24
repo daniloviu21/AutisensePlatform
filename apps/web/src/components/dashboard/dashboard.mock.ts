@@ -2,23 +2,23 @@ import type { DashboardData } from "./dashboard.types";
 
 export const superAdminMockData: DashboardData = {
   kpis: [
-    { id: "1", label: "Pacientes Registrados", value: 12450, trend: 12.5, iconType: "users", color: "#2A9D8F" },
-    { id: "2", label: "Clínicas Activas", value: 48, trend: 4.2, iconType: "building", color: "#E76F51" },
-    { id: "3", label: "Profesionales", value: 342, trend: 8.1, iconType: "medical", color: "#457B9D" },
-    { id: "4", label: "Sesiones Mensuales", value: "45K+", trend: 15.3, iconType: "activity", color: "#F4A261" },
+    { id: "1", label: "Pacientes Registrados", value: 12450, trend: 12.5, iconType: "users", color: "#1A5C8A" },
+    { id: "2", label: "Clínicas Activas", value: 48, trend: 4.2, iconType: "building", color: "#1A5C8A" },
+    { id: "3", label: "Profesionales", value: 342, trend: 8.1, iconType: "medical", color: "#2E9E6B" },
+    { id: "4", label: "Sesiones Mensuales", value: "45K+", trend: 15.3, iconType: "activity", color: "#5BAFD6" },
   ],
   growthChart: {
     categories: ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"],
     series: [
-      { name: "Nuevos Pacientes", data: [450, 480, 520, 590, 610, 680, 720, 780, 810, 890, 950, 1020], color: "#2A9D8F" },
-      { name: "Altas Médicas", data: [120, 135, 125, 150, 160, 140, 180, 190, 210, 205, 230, 250], color: "#E76F51" }
+      { name: "Nuevos Pacientes", data: [450, 480, 520, 590, 610, 680, 720, 780, 810, 890, 950, 1020], color: "#1A5C8A", fillColor: "rgba(26,92,138,0.08)" },
+      { name: "Altas Médicas", data: [120, 135, 125, 150, 160, 140, 180, 190, 210, 205, 230, 250], color: "#2E9E6B", fillColor: "rgba(46,158,107,0.06)" }
     ]
   },
   distributionChart: [
-    { name: "TEA Nivel 1", y: 45, color: "#2A9D8F" },
-    { name: "TEA Nivel 2", y: 35, color: "#E9C46A" },
-    { name: "TEA Nivel 3", y: 15, color: "#F4A261" },
-    { name: "Otros Diagnósticos", y: 5, color: "#E76F51" }
+    { name: "TEA Nivel 1", y: 45, color: "#1A5C8A" },
+    { name: "TEA Nivel 2", y: 35, color: "#5BAFD6" },
+    { name: "TEA Nivel 3", y: 15, color: "#2E9E6B" },
+    { name: "Otros Diagnósticos", y: 5, color: "#7F8C8D" }
   ],
   recentActivity: [
     { id: "a1", title: "Nueva clínica registrada", description: "Clínica NeuroDesarrollo Sur se ha unido a la red.", timestamp: "Hace 2 horas", type: "success" },

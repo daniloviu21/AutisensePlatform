@@ -40,9 +40,9 @@ export default function DashboardKpiCards({ kpis }: Props) {
     >
       {kpis.map((kpi) => {
         const isPositive = kpi.trend !== undefined && kpi.trend >= 0;
-        const trendColor = isPositive ? "#0F766E" : "#B91C1C";
+        const trendColor = isPositive ? "#2E9E6B" : "#B91C1C";
         const trendBgColor = isPositive
-          ? alpha("#2A9D8F", 0.15)
+          ? alpha("#2E9E6B", 0.15)
           : alpha("#EF4444", 0.15);
 
         return (
@@ -52,8 +52,8 @@ export default function DashboardKpiCards({ kpis }: Props) {
             sx={{
               p: 2.5,
               borderRadius: 3,
-              border: "1px solid",
-              borderColor: "divider",
+              border: "1px solid rgba(26, 92, 138, 0.12)",
+              boxShadow: "0 1px 4px rgba(26, 92, 138, 0.07)",
               backgroundColor: "background.paper",
               display: "flex",
               flexDirection: "column",

@@ -4,11 +4,15 @@ export function buildTheme(mode: "light" | "dark") {
   return createTheme({
     palette: {
       mode,
-      primary: { main: mode === "light" ? "#2A9D8F" : "#5ED6C7" },
-      secondary: { main: mode === "light" ? "#457B9D" : "#7FB3D5" },
+      primary: { main: mode === "light" ? "#1A5C8A" : "#5BAFD6" },
+      secondary: { main: "#2E9E6B" },
       background: {
-        default: mode === "light" ? "#F6F8FB" : "#0E141B",
-        paper: mode === "light" ? "#FFFFFF" : "#141C24",
+        default: mode === "light" ? "#F5F0E8" : "#0D1E2C",
+        paper: mode === "light" ? "#FFFFFF" : "#112130",
+      },
+      text: {
+        primary: mode === "light" ? "#2C3E50" : "#E8F0F6",
+        secondary: mode === "light" ? "#7F8C8D" : "#8AAFC4",
       },
     },
     shape: { borderRadius: 14 },

@@ -89,23 +89,23 @@ export default function AdminLayout({
 
   const shellBg =
     mode === "dark"
-      ? "linear-gradient(180deg, #0A1016 0%, #0F1720 100%)"
-      : "linear-gradient(180deg, #F5F8FC 0%, #EEF3F8 100%)";
+      ? "linear-gradient(180deg, #0D1E2C 0%, #0F2336 100%)"
+      : "linear-gradient(180deg, #F5F0E8 0%, #EEF6F2 100%)";
 
   const sidebarBg =
     mode === "dark"
-      ? "linear-gradient(180deg, #0B1218 0%, #0F1720 100%)"
+      ? "#0A1A27"
       : "#FFFFFF";
 
   const sidebarBorder =
     mode === "dark"
-      ? "1px solid rgba(255,255,255,0.06)"
-      : "1px solid rgba(15,23,42,0.08)";
+      ? "1px solid rgba(91, 175, 214, 0.10)"
+      : "1px solid rgba(26, 92, 138, 0.12)";
 
   const headerBorder =
     mode === "dark"
-      ? "1px solid rgba(255,255,255,0.06)"
-      : "1px solid rgba(15,23,42,0.08)";
+      ? "1px solid rgba(91, 175, 214, 0.08)"
+      : "1px solid rgba(26, 92, 138, 0.10)";
 
   const content = (
     <Box
@@ -126,12 +126,12 @@ export default function AdminLayout({
             fontSize: 26,
             fontWeight: 800,
             letterSpacing: "-0.04em",
-            color: "text.primary",
+            color: mode === "dark" ? "#5BAFD6" : "#1A5C8A",
           }}
         >
           AutiSense
         </Typography>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{ color: "#7F8C8D" }}>
           Panel administrativo
         </Typography>
       </Box>
@@ -149,26 +149,30 @@ export default function AdminLayout({
               to={item.path}
               sx={{
                 minHeight: 46,
-                borderRadius: 2,
+                borderRadius: "10px",
                 mb: 0.5,
-                color: selected ? "primary.main" : "text.secondary",
+                color: selected 
+                  ? (mode === "dark" ? "#5BAFD6" : "#1A5C8A")
+                  : "text.secondary",
                 backgroundColor: selected
                   ? mode === "dark"
-                    ? "rgba(42,157,143,0.14)"
-                    : "rgba(42,157,143,0.10)"
+                    ? "rgba(91, 175, 214, 0.15)"
+                    : "rgba(26, 92, 138, 0.10)"
                   : "transparent",
                 "&:hover": {
                   backgroundColor:
                     mode === "dark"
-                      ? "rgba(255,255,255,0.05)"
-                      : "rgba(15,23,42,0.04)",
+                      ? "rgba(91, 175, 214, 0.08)"
+                      : "rgba(26, 92, 138, 0.05)",
                 },
               }}
             >
               <ListItemIcon
                 sx={{
                   minWidth: 38,
-                  color: selected ? "primary.main" : "text.secondary",
+                  color: selected 
+                    ? (mode === "dark" ? "#5BAFD6" : "#1A5C8A")
+                    : "text.secondary",
                 }}
               >
                 {item.icon}
@@ -195,7 +199,7 @@ export default function AdminLayout({
           sx={{
             borderRadius: 2,
             minHeight: 44,
-            color: "text.secondary",
+            color: "#E53935",
             "&:hover": {
               backgroundColor:
                 mode === "dark"
@@ -204,7 +208,7 @@ export default function AdminLayout({
             },
           }}
         >
-          <ListItemIcon sx={{ minWidth: 38, color: "text.secondary" }}>
+          <ListItemIcon sx={{ minWidth: 38, color: "#E53935" }}>
             <LogoutOutlined />
           </ListItemIcon>
           <ListItemText

@@ -12,6 +12,7 @@ export type ChartDataSeries = {
   name: string;
   data: number[];
   color?: string;
+  fillColor?: string;
 };
 
 export type ActivityItem = {
