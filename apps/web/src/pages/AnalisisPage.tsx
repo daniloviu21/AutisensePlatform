@@ -5,6 +5,7 @@ import AdminLayout from "../layout/AdminLayout";
 import AnalisisEncuentroForm, { type EncuentroData } from "../components/analisis/AnalisisEncuentroForm";
 import AnalisisVideoDropzone from "../components/analisis/AnalisisVideoDropzone";
 import AnalisisSimulatorModal from "../components/analisis/AnalisisSimulatorModal";
+import { http } from "../api/http";
 
 export default function AnalisisPage() {
   const [encuentroData, setEncuentroData] = useState<EncuentroData>({
@@ -39,33 +40,20 @@ export default function AnalisisPage() {
 
   const handleSimulationComplete = async (): Promise<{ ok: boolean; analisisId?: number }> => {
     try {
-      const response = await fetch("http://localhost:4000/analisis/simular", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+      const response = await http.post("/analisis/simular", {
+        pacienteId: encuentroData.pacienteId,
+        tipoEncuentro: encuentroData.tipoEncuentro,
+        fecha: encuentroData.fecha,
+        motivo: encuentroData.motivo,
+        contexto: encuentroData.contexto,
+        videoFile: {
+          name: videoFile?.name,
+          type: videoFile?.type,
+          size: videoFile?.size,
         },
-        body: JSON.stringify({
-          pacienteId: encuentroData.pacienteId,
-          tipoEncuentro: encuentroData.tipoEncuentro,
-          fecha: encuentroData.fecha,
-          motivo: encuentroData.motivo,
-          contexto: encuentroData.contexto,
-          videoFile: {
-            name: videoFile?.name,
-            type: videoFile?.type,
-            size: videoFile?.size,
-          },
-        }),
       });
 
-      const json = await response.json();
-
-      if (!response.ok) {
-        throw new Error("Error guardando el análisis simulado");
-      }
-
-      return { ok: true, analisisId: json.analisisId };
+      return { ok: true, analisisId: response.data.analisisId };
     } catch (error) {
       console.error(error);
       return { ok: false };
