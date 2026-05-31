@@ -38,19 +38,22 @@ app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
-app.use("/auth", authRouter);
-app.use("/me", meRouter);
-app.use("/clinicas", clinicasRouter);
-app.use("/usuarios", usuariosRouter);
-app.use("/profesionales", profesionalesRouter);
-app.use("/pacientes", pacientesRouter);
-app.use("/tutores", tutoresRouter);
-app.use("/audit-logs", auditLogsRouter);
-app.use("/analisis", analisisRouter);
-app.use("/checkout", checkoutRouter);
-app.use("/suscripciones", suscripcionesRouter);
+const apiRouter = express.Router();
 
-// ─── Swagger API Docs (sin autenticación) ────────────────────────────────────
+apiRouter.use("/auth", authRouter);
+apiRouter.use("/me", meRouter);
+apiRouter.use("/clinicas", clinicasRouter);
+apiRouter.use("/usuarios", usuariosRouter);
+apiRouter.use("/profesionales", profesionalesRouter);
+apiRouter.use("/pacientes", pacientesRouter);
+apiRouter.use("/tutores", tutoresRouter);
+apiRouter.use("/audit-logs", auditLogsRouter);
+apiRouter.use("/analisis", analisisRouter);
+apiRouter.use("/checkout", checkoutRouter);
+apiRouter.use("/suscripciones", suscripcionesRouter);
+
+app.use("/api", apiRouter);
+
 app.use(
   "/api-docs",
   swaggerUi.serve,
@@ -79,7 +82,6 @@ app.use((error: any, _req: any, res: any, _next: any) => {
 app.listen(port, () => {
   logger.info(`API running on http://localhost:${port}`);
 
-  // Limpieza inicial + periódica cada 6 h
   void purgeExpiredMfaChallenges();
   void purgeExpiredRefreshTokens();
   setInterval(() => {

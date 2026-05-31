@@ -1,14 +1,14 @@
 import axios from "axios";
 
-// ─── Configuración base ───────────────────────────────────────────────────────
+const configuredUrl = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+const cleanUrl = configuredUrl.replace(/\/+$/, "");
+const apiBaseURL = cleanUrl.endsWith("/api") ? cleanUrl : `${cleanUrl}/api`;
 
 export const http = axios.create({
-  // Fix #6: lee la URL de la env var de Vite, con fallback al dev local
-  baseURL: import.meta.env.VITE_API_URL ?? "http://localhost:4000",
+  baseURL: apiBaseURL,
   withCredentials: false,
 });
 
-// ─── Callback de sincronización con AuthContext (fix #4) ──────────────────────
 
 type UserPayload = {
   id: number;
@@ -20,12 +20,10 @@ type UserPayload = {
 
 let _onUserRefreshed: ((user: UserPayload) => void) | null = null;
 
-/** AuthContext lo llama en el mount para recibir actualizaciones de usuario. */
 export function registerUserRefreshCallback(cb: (user: UserPayload) => void) {
   _onUserRefreshed = cb;
 }
 
-// ─── Guard de redirección ─────────────────────────────────────────────────────
 
 let isRedirectingToLogin = false;
 
@@ -49,12 +47,10 @@ function clearSessionAndRedirect() {
   }
 }
 
-// ─── Fix #3: Cola de promesas para evitar refresh concurrente ─────────────────
 
 let refreshPromise: Promise<string> | null = null;
 
 async function getNewAccessToken(): Promise<string> {
-  // Si ya hay un refresh en curso, espera el mismo, no lances otro
   if (refreshPromise) return refreshPromise;
 
   const refresh = localStorage.getItem("refreshToken");
@@ -71,7 +67,6 @@ async function getNewAccessToken(): Promise<string> {
 
       if (r.data.user) {
         localStorage.setItem("user", JSON.stringify(r.data.user));
-        // Sincroniza el estado React (fix #4)
         _onUserRefreshed?.(r.data.user);
       }
 
@@ -82,14 +77,11 @@ async function getNewAccessToken(): Promise<string> {
       throw err;
     })
     .finally(() => {
-      // Libera la cola para el siguiente ciclo
       refreshPromise = null;
     });
 
   return refreshPromise;
 }
-
-// ─── Interceptor de REQUEST: adjunta access token ────────────────────────────
 
 http.interceptors.request.use((config) => {
   const token = localStorage.getItem("accessToken");
@@ -100,7 +92,6 @@ http.interceptors.request.use((config) => {
   return config;
 });
 
-// ─── Interceptor de RESPONSE: renueva token en 401 ───────────────────────────
 
 http.interceptors.response.use(
   (res) => res,
