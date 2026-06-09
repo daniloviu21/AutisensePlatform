@@ -248,25 +248,6 @@ model Archivo {
   @@index([subido_por_id])
 }
 
-model AnalisisIA {
-  id               Int      @id @default(autoincrement())
-  id_archivo       Int      @unique
-  archivo          Archivo  @relation(fields: [id_archivo], references: [id])
-
-  estado           String   @default("completado")
-  score            Float?
-  clasificacion    String?
-  confianza        Float?
-  
-  modelo           String?  @default("mock")
-  modelo_version   String?  @default("sim-v1")
-  error_msg        String?
-
-  observaciones    String?  @db.Text
-
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-}
 
 model Suscripcion {
   id            Int       @id @default(autoincrement())
@@ -324,4 +305,55 @@ model CheckoutSession {
   updatedAt         DateTime  @updatedAt
 
   @@index([token])
+}
+
+model AnalisisIA {
+  id          Int     @id @default(autoincrement())
+  id_archivo  Int     @unique
+  archivo     Archivo @relation(fields: [id_archivo], references: [id])
+
+  // ── Estado del procesamiento ──────────────────────────────────
+  estado      String  @default("pendiente")
+  // pendiente | procesando | completado | error
+
+  // ── Resultado de la predicción ────────────────────────────────
+  clasificacion     String?   // "ASD" | "TD"
+  probabilidad_asd  Float?    // 0.0 – 1.0
+  confianza         String?   // "alta" | "media" | "baja"
+  umbral_usado      Float?
+
+  // ── Métricas del modelo (para mostrar en la UI) ───────────────
+  score         Float?    // alias de probabilidad_asd (compatibilidad)
+  auc_modelo    Float?    // AUC del modelo en el dataset de entrenamiento
+  log_loss      Float?    // Log-loss del modelo
+  f1_macro      Float?    // F1-score macro
+
+  // ── Tiempos de ejecución ──────────────────────────────────────
+  tiempo_extraccion_ms  Int?  // ms que tardó MediaPipe en procesar el video
+  tiempo_total_ms       Int?  // ms totales (extracción + predicción)
+
+  // ── Información del modelo usado ─────────────────────────────
+  modelo          String?   @default("SVM (lineal calibrado)")
+  modelo_version  String?   @default("v2")
+
+  // ── Features extraídas (para auditoría / reentrenamiento) ────
+  // Se guarda como JSON para no crear 34 columnas
+  features_json   Json?
+  // Ejemplo: {"var_gaze_x": 0.023, "entropia_gaze_x": 0.71, ...}
+
+  // ── Advertencias de calidad ───────────────────────────────────
+  advertencias    String[]  @default([])
+  // Ej: ["Alta pérdida de tracking: 45%", "Video muy corto"]
+
+  // ── Errores ───────────────────────────────────────────────────
+  error_msg       String?
+
+  // ── Observaciones clínicas ───────────────────────────────────
+  observaciones   String?   @db.Text
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([estado])
+  @@index([clasificacion])
 }

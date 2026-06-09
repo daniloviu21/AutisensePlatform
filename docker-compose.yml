@@ -10,6 +10,11 @@ services:
       - "5433:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   pgadmin:
     image: dpage/pgadmin4:8
@@ -21,6 +26,24 @@ services:
       - "5050:80"
     depends_on:
       - db
+
+  ml-service:
+    build: ./ml-service
+    container_name: autisense-ml
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./ml-service/modelo:/app/modelo:ro
+    environment:
+      MODELO_PATH: /app/modelo/mejor_modelo_v2.pkl
+      MAX_VIDEO_MB: "100"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
 volumes:
   db_data:

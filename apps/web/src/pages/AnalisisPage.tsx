@@ -1,10 +1,9 @@
-import { useState } from "react";
-import { Box, Button, Stack, Alert } from "@mui/material";
-import { PlayArrowOutlined } from "@mui/icons-material";
+import { useState, useCallback } from "react";
+import { Box, Stack, Alert } from "@mui/material";
 import AdminLayout from "../layout/AdminLayout";
 import AnalisisEncuentroForm, { type EncuentroData } from "../components/analisis/AnalisisEncuentroForm";
 import AnalisisVideoDropzone from "../components/analisis/AnalisisVideoDropzone";
-import AnalisisSimulatorModal from "../components/analisis/AnalisisSimulatorModal";
+import AnalisisProgressModal from "../components/analisis/AnalisisProgressModal";
 import { http } from "../api/http";
 
 export default function AnalisisPage() {
@@ -17,13 +16,12 @@ export default function AnalisisPage() {
   });
 
   const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [simulatorOpen, setSimulatorOpen] = useState(false);
+  const [progressOpen, setProgressOpen] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleStartAnalysis = () => {
     setErrorMsg(null);
 
-    // Validation
     if (!encuentroData.pacienteId) {
       setErrorMsg("Debe seleccionar un paciente para iniciar el análisis.");
       return;
@@ -34,30 +32,37 @@ export default function AnalisisPage() {
       return;
     }
 
-    // Launch Simulator Modal
-    setSimulatorOpen(true);
+    setProgressOpen(true);
   };
 
-  const handleSimulationComplete = async (): Promise<{ ok: boolean; analisisId?: number }> => {
+  // Esta función es la que el modal llama para hacer el trabajo real.
+  // Arma el FormData y llama al endpoint real del backend.
+  const handleRunAnalysis = useCallback(async (): Promise<{ ok: boolean; analisisId?: number }> => {
+    if (!videoFile) return { ok: false };
+
     try {
-      const response = await http.post("/analisis/simular", {
-        pacienteId: encuentroData.pacienteId,
-        tipoEncuentro: encuentroData.tipoEncuentro,
-        fecha: encuentroData.fecha,
-        motivo: encuentroData.motivo,
-        contexto: encuentroData.contexto,
-        videoFile: {
-          name: videoFile?.name,
-          type: videoFile?.type,
-          size: videoFile?.size,
-        },
+      const formData = new FormData();
+      formData.append("video", videoFile, videoFile.name);
+      formData.append("pacienteId", String(encuentroData.pacienteId));
+      formData.append("tipoEncuentro", encuentroData.tipoEncuentro);
+      formData.append("fecha", encuentroData.fecha);
+      formData.append("motivo", encuentroData.motivo);
+      formData.append("contexto", encuentroData.contexto || "");
+
+      const response = await http.post("/analisis/nuevo", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+        timeout: 180_000, // 3 minutos — MediaPipe puede tardar
       });
 
-      return { ok: true, analisisId: response.data.analisisId };
-    } catch (error) {
-      console.error(error);
+      return { ok: true, analisisId: response.data.analisis_id };
+    } catch (error: any) {
+      console.error("Error en análisis:", error);
       return { ok: false };
     }
+  }, [videoFile, encuentroData]);
+
+  const handleModalClose = () => {
+    setProgressOpen(false);
   };
 
   return (
@@ -87,11 +92,11 @@ export default function AnalisisPage() {
         </Stack>
       </Box>
 
-      {/* Simulated Flow UI */}
-      <AnalisisSimulatorModal
-        open={simulatorOpen}
-        onClose={() => setSimulatorOpen(false)}
-        onSimulationComplete={handleSimulationComplete}
+      {/* Modal de progreso real */}
+      <AnalisisProgressModal
+        open={progressOpen}
+        onClose={handleModalClose}
+        onRunAnalysis={handleRunAnalysis}
       />
     </AdminLayout>
   );

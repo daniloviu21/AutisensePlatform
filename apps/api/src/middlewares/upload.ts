@@ -1,4 +1,6 @@
 import multer from "multer";
+import path from "path";
+import os from "os";
 
 const storage = multer.memoryStorage();
 
@@ -15,5 +17,20 @@ export const upload = multer({
     }
 
     cb(null, true);
+  },
+});
+
+export const uploadVideo = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, os.tmpdir()),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname) || ".mp4";
+      cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+    },
+  }),
+  limits: { fileSize: 100 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const tipos = ["video/mp4", "video/avi", "video/quicktime", "video/webm", "video/x-msvideo"];
+    cb(null, tipos.includes(file.mimetype));
   },
 });

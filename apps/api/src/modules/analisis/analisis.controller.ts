@@ -108,7 +108,7 @@ export const simularAnalisis = async (req: Request, res: Response): Promise<void
           estado: "completado",
           score: mockScore,
           clasificacion: clasificacion,
-          confianza: 0.92,
+          confianza: "alta",
           modelo: "mock",
           modelo_version: "sim-v1",
         }
