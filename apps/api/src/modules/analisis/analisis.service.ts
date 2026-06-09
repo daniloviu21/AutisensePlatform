@@ -13,11 +13,12 @@ export async function procesarVideoYPredecir(opciones: {
     id_archivo: number;
     ruta_video_temp: string;
     nombre_archivo: string;
+    tipo_mime?: string;
     edad_meses?: number;
     genero_masculino?: number;
 }) {
     const {
-        id_archivo, ruta_video_temp, nombre_archivo,
+        id_archivo, ruta_video_temp, nombre_archivo, tipo_mime = "video/mp4",
         edad_meses = 0, genero_masculino = 0,
     } = opciones;
 
@@ -30,7 +31,7 @@ export async function procesarVideoYPredecir(opciones: {
     try {
         const formData = new FormData();
         const fileBuffer = fs.readFileSync(ruta_video_temp);
-        const blob = new Blob([fileBuffer]);
+        const blob = new Blob([fileBuffer], { type: tipo_mime });
         formData.append("video", blob, nombre_archivo);
         formData.append("edad_meses", String(edad_meses));
         formData.append("genero_masculino", String(genero_masculino));

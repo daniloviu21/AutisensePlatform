@@ -18,7 +18,15 @@ export interface AuditData {
  * Never throws — errors are logged but don't block the response.
  */
 export function logAudit(prisma: PrismaClient, data: AuditData): void {
+  const { statusCode, ...prismaData } = data;
+
+  if (statusCode !== undefined && statusCode !== null) {
+    prismaData.detail = prismaData.detail
+      ? `${prismaData.detail} [status: ${statusCode}]`
+      : `status: ${statusCode}`;
+  }
+
   prisma.auditLog
-    .create({ data })
+    .create({ data: prismaData })
     .catch((err) => logger.error("logAudit DB error", { err: String(err) }));
 }

@@ -112,6 +112,7 @@ router.post(
                 id_archivo: archivo.id,
                 ruta_video_temp: req.file.path,
                 nombre_archivo: req.file.originalname,
+                tipo_mime: req.file.mimetype,
                 edad_meses,
                 genero_masculino: paciente.sexo === "M" ? 1 : 0,
             });
@@ -184,6 +185,7 @@ router.post(
                 id_archivo: archivo.id,
                 ruta_video_temp: req.file.path,
                 nombre_archivo: req.file.originalname,
+                tipo_mime: req.file.mimetype,
                 edad_meses,
                 genero_masculino: encuentro.paciente.sexo === "M" ? 1 : 0,
             });
