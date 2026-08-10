@@ -36,7 +36,7 @@ services:
     volumes:
       - ./ml-service/modelo:/app/modelo:ro
     environment:
-      MODELO_PATH: /app/modelo/asd_classifier.keras
+      MODELO_PATH: /app/modelo/asd_classifier.h5
       METADATA_PATH: /app/modelo/asd_classifier_metadata.json
       PREPROCESSOR_PATH: /app/modelo/preprocessor.pkl
       MAX_VIDEO_MB: "100"

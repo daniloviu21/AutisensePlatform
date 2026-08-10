@@ -20,7 +20,7 @@ from biomarker_extractor import extraer_qchat_de_video
 # CONFIGURACIÓN
 # ─────────────────────────────────────────────────────────────────
 
-MODELO_PATH       = os.getenv("MODELO_PATH",       "/app/modelo/asd_classifier.keras")
+MODELO_PATH       = os.getenv("MODELO_PATH",       "/app/modelo/asd_classifier.h5")
 METADATA_PATH     = os.getenv("METADATA_PATH",     "/app/modelo/asd_classifier_metadata.json")
 PREPROCESSOR_PATH = os.getenv("PREPROCESSOR_PATH", "/app/modelo/preprocessor.pkl")
 
