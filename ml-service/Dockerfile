@@ -13,9 +13,10 @@ COPY biomarker_extractor.py biomarker_extractor.py
 
 RUN mkdir -p /app/modelo
 
-ENV MODELO_PATH=/app/modelo/asd_classifier.keras
+ENV MODELO_PATH=/app/modelo/asd_classifier.h5
 ENV METADATA_PATH=/app/modelo/asd_classifier_metadata.json
 ENV PREPROCESSOR_PATH=/app/modelo/preprocessor.pkl
+ENV MPLBACKEND=Agg
 
 EXPOSE 8000
 
