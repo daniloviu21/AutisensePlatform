@@ -13,6 +13,10 @@ COPY biomarker_extractor.py biomarker_extractor.py
 
 RUN mkdir -p /app/modelo
 
+# Pre-construir el cache de fuentes de matplotlib durante el build (no en runtime)
+ENV MPLBACKEND=Agg
+RUN python -c "import matplotlib; matplotlib.font_manager._load_fontmanager(force_reload=True)"
+
 ENV MODELO_PATH=/app/modelo/asd_classifier.h5
 ENV METADATA_PATH=/app/modelo/asd_classifier_metadata.json
 ENV PREPROCESSOR_PATH=/app/modelo/preprocessor.pkl

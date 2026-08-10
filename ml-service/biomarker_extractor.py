@@ -1,13 +1,10 @@
 import os
 import math
-import cv2
 import pandas as pd
 import numpy as np
 import urllib.request
-import mediapipe as mp
-
-from mediapipe.tasks import python as mp_python
-from mediapipe.tasks.python import vision
+# cv2 y mediapipe se importan de forma diferida (lazy) dentro de la función
+# para evitar consumir RAM al arrancar el servidor FastAPI.
 
 # ──────────────────────────────────────────────────────────────────────────────
 # CONSTANTES Y CONFIGURACIÓN
@@ -125,6 +122,11 @@ def download_model(url, filename):
         urllib.request.urlretrieve(url, filename)
 
 def init_landmarkers():
+    # Import diferido: mediapipe solo se carga en RAM cuando se recibe la primera peticion
+    import mediapipe as mp
+    from mediapipe.tasks import python as mp_python
+    from mediapipe.tasks.python import vision
+
     download_model("https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task", FACE_MODEL_PATH)
     download_model("https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task", POSE_MODEL_PATH)
 
@@ -159,6 +161,9 @@ def extraer_qchat_de_video(ruta_video: str, edad_meses: int, sexo: str, etnia: s
     Analiza el video con MediaPipe, extrae los biomarcadores conductuales, 
     calcula A1-A10, y los devuelve en un DataFrame junto con los demográficos.
     """
+    # Import diferido: cv2 solo se carga en RAM cuando se recibe la primera peticion
+    import cv2
+
     face_landmarker, pose_landmarker = init_landmarkers()
 
     cap = cv2.VideoCapture(ruta_video)
