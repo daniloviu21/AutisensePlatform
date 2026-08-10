@@ -44,7 +44,7 @@ router.post(
             return res.status(400).json({ message: "Se requiere un archivo de video." });
         }
 
-        const { pacienteId, tipoEncuentro, fecha, motivo, contexto } = req.body;
+        const { pacienteId, tipoEncuentro, fecha, motivo, contexto, etnia, ictericia, familiar_tea } = req.body;
 
         if (!pacienteId) {
             return res.status(400).json({ message: "Se requiere pacienteId." });
@@ -115,6 +115,10 @@ router.post(
                 tipo_mime: req.file.mimetype,
                 edad_meses,
                 genero_masculino: paciente.sexo === "M" ? 1 : 0,
+                sexo: paciente.sexo.toLowerCase() === "m" ? "m" : "f",
+                etnia: etnia || "White European",
+                ictericia: ictericia || "no",
+                familiar_tea: familiar_tea || "no"
             });
 
             logAudit(prisma, {
@@ -156,6 +160,8 @@ router.post(
             return res.status(400).json({ message: "Se requiere un archivo de video" });
         }
 
+        const { etnia, ictericia, familiar_tea } = req.body;
+
         try {
             const encuentro = await prisma.encuentro.findUnique({
                 where: { id: Number(id_encuentro) },
@@ -188,6 +194,10 @@ router.post(
                 tipo_mime: req.file.mimetype,
                 edad_meses,
                 genero_masculino: encuentro.paciente.sexo === "M" ? 1 : 0,
+                sexo: encuentro.paciente.sexo.toLowerCase() === "m" ? "m" : "f",
+                etnia: etnia || "White European",
+                ictericia: ictericia || "no",
+                familiar_tea: familiar_tea || "no"
             });
 
             logAudit(prisma, {

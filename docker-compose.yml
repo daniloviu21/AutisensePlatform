@@ -36,7 +36,9 @@ services:
     volumes:
       - ./ml-service/modelo:/app/modelo:ro
     environment:
-      MODELO_PATH: /app/modelo/mejor_modelo_v2.pkl
+      MODELO_PATH: /app/modelo/asd_classifier.keras
+      METADATA_PATH: /app/modelo/asd_classifier_metadata.json
+      PREPROCESSOR_PATH: /app/modelo/preprocessor.pkl
       MAX_VIDEO_MB: "100"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]

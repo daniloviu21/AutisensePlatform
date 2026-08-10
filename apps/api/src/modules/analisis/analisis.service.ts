@@ -3,10 +3,11 @@ import { prisma } from "../../db/prisma";
 
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || "http://ml-service:8000";
 
+// Métricas reales del modelo (actualizadas post-entrenamiento Epoch 28/35)
 const METRICAS_MODELO = {
-    auc_modelo: 0.893,
-    log_loss: 0.420,
-    f1_macro: 0.718,
+    auc_modelo: 0.9936,
+    log_loss:   0.0724,
+    f1_macro:   0.9795,
 };
 
 export async function procesarVideoYPredecir(opciones: {
@@ -16,10 +17,15 @@ export async function procesarVideoYPredecir(opciones: {
     tipo_mime?: string;
     edad_meses?: number;
     genero_masculino?: number;
+    sexo?: string;
+    etnia?: string;
+    ictericia?: string;
+    familiar_tea?: string;
 }) {
     const {
         id_archivo, ruta_video_temp, nombre_archivo, tipo_mime = "video/mp4",
         edad_meses = 0, genero_masculino = 0,
+        sexo = "m", etnia = "White European", ictericia = "no", familiar_tea = "no"
     } = opciones;
 
     await prisma.analisisIA.upsert({
@@ -35,6 +41,10 @@ export async function procesarVideoYPredecir(opciones: {
         formData.append("video", blob, nombre_archivo);
         formData.append("edad_meses", String(edad_meses));
         formData.append("genero_masculino", String(genero_masculino));
+        formData.append("sexo", String(sexo));
+        formData.append("etnia", String(etnia));
+        formData.append("ictericia", String(ictericia));
+        formData.append("familiar_tea", String(familiar_tea));
 
         const respuesta = await fetch(`${ML_SERVICE_URL}/predict`, {
             method: "POST",

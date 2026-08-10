@@ -45,8 +45,8 @@ const STAGES: { key: StageKey; label: string; sublabel: string; icon: React.Reac
   },
   {
     key: "model",
-    label: "Ejecutando modelo SVM...",
-    sublabel: "El modelo de machine learning genera la predicción",
+    label: "Ejecutando modelo Keras...",
+    sublabel: "La red neuronal genera la predicción de riesgo TEA",
     icon: <ScienceOutlined sx={{ fontSize: 64 }} />,
   },
   {

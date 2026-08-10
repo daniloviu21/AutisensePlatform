@@ -13,6 +13,9 @@ export default function AnalisisPage() {
     fecha: new Date().toISOString().split("T")[0],
     motivo: "",
     contexto: "",
+    etnia: "White European",
+    ictericia: "no",
+    familiar_tea: "no",
   });
 
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -48,6 +51,9 @@ export default function AnalisisPage() {
       formData.append("fecha", encuentroData.fecha);
       formData.append("motivo", encuentroData.motivo);
       formData.append("contexto", encuentroData.contexto || "");
+      formData.append("etnia", encuentroData.etnia);
+      formData.append("ictericia", encuentroData.ictericia);
+      formData.append("familiar_tea", encuentroData.familiar_tea);
 
       const response = await http.post("/analisis/nuevo", formData, {
         headers: { "Content-Type": "multipart/form-data" },

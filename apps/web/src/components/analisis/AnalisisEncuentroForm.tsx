@@ -22,6 +22,9 @@ export type EncuentroData = {
   fecha: string;
   motivo: string;
   contexto: string;
+  etnia: string;
+  ictericia: string;
+  familiar_tea: string;
 };
 
 type PacienteOption = {
@@ -162,6 +165,55 @@ export default function AnalisisEncuentroForm({ value, onChange }: Props) {
             value={value.contexto}
             onChange={(e) => handleChange("contexto", e.target.value)}
           />
+
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+            <FormControl fullWidth>
+              <InputLabel id="etnia-lbl">Etnia</InputLabel>
+              <Select
+                labelId="etnia-lbl"
+                label="Etnia"
+                value={value.etnia}
+                onChange={(e) => handleChange("etnia", e.target.value)}
+              >
+                <MenuItem value="White European">Blanco Europeo</MenuItem>
+                <MenuItem value="Latino">Latino</MenuItem>
+                <MenuItem value="Native Indian">Nativo Americano</MenuItem>
+                <MenuItem value="asian">Asiático</MenuItem>
+                <MenuItem value="black">Negro / Afrodescendiente</MenuItem>
+                <MenuItem value="middle eastern">Medio Oriente</MenuItem>
+                <MenuItem value="south asian">Sur Asiático</MenuItem>
+                <MenuItem value="Pacifica">Pacífica</MenuItem>
+                <MenuItem value="mixed">Mixto</MenuItem>
+                <MenuItem value="Others">Otros</MenuItem>
+              </Select>
+            </FormControl>
+
+            <FormControl fullWidth>
+              <InputLabel id="ictericia-lbl">Nacido con Ictericia</InputLabel>
+              <Select
+                labelId="ictericia-lbl"
+                label="Nacido con Ictericia"
+                value={value.ictericia}
+                onChange={(e) => handleChange("ictericia", e.target.value)}
+              >
+                <MenuItem value="no">No</MenuItem>
+                <MenuItem value="yes">Sí</MenuItem>
+              </Select>
+            </FormControl>
+
+            <FormControl fullWidth>
+              <InputLabel id="familiar-tea-lbl">Familiar con TEA</InputLabel>
+              <Select
+                labelId="familiar-tea-lbl"
+                label="Familiar con TEA"
+                value={value.familiar_tea}
+                onChange={(e) => handleChange("familiar_tea", e.target.value)}
+              >
+                <MenuItem value="no">No</MenuItem>
+                <MenuItem value="yes">Sí</MenuItem>
+              </Select>
+            </FormControl>
+          </Stack>
         </Stack>
       </CardContent>
     </Card>
