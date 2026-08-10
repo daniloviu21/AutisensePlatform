@@ -161,8 +161,10 @@ def extraer_qchat_de_video(ruta_video: str, edad_meses: int, sexo: str, etnia: s
     Analiza el video con MediaPipe, extrae los biomarcadores conductuales, 
     calcula A1-A10, y los devuelve en un DataFrame junto con los demográficos.
     """
-    # Import diferido: cv2 solo se carga en RAM cuando se recibe la primera peticion
+    # Import diferido: cv2 y mediapipe solo se cargan en RAM cuando se recibe la primera peticion
     import cv2
+    import mediapipe as mp
+    from mediapipe.tasks.python import vision
 
     face_landmarker, pose_landmarker = init_landmarkers()
 
