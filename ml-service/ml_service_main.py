@@ -41,10 +41,21 @@ async def lifespan(app: FastAPI):
     global modelo, preprocessor, umbral, meta_info
     log.info(f"Cargando modelo desde {MODELO_PATH}...")
     try:
-        modelo = tf.keras.models.load_model(MODELO_PATH)
-        
         with open(METADATA_PATH, 'r', encoding='utf-8') as f:
             meta_info = json.load(f)
+            
+        n_features = meta_info.get("n_features", 24)
+        
+        # Construir la arquitectura manualmente en Keras 2
+        modelo = tf.keras.models.Sequential([
+            tf.keras.layers.InputLayer(input_shape=(n_features,), name="input_layer"),
+            tf.keras.layers.Dense(256, activation="selu", kernel_initializer="lecun_normal", name="hidden_layer_1"),
+            tf.keras.layers.AlphaDropout(0.2, name="alpha_dropout"),
+            tf.keras.layers.Dense(128, activation="selu", kernel_initializer="lecun_normal", name="hidden_layer_2"),
+            tf.keras.layers.Dense(1, activation="sigmoid", name="output_layer")
+        ])
+        # Cargar SOLO los pesos (matrices matematicas) saltando la config incompatible de Keras 3
+        modelo.load_weights(MODELO_PATH)
             
         umbral = meta_info.get("optimal_threshold", 0.5)
         
